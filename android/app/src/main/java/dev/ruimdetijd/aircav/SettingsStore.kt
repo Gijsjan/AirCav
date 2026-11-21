@@ -213,8 +213,8 @@ object TaskParser {
                 uuid = t.getString("uuid"),
                 description = t.getString("description"),
                 tags = (0 until tagsArr.length()).map { j -> tagsArr.getString(j) },
-                project = if (t.isNull("project")) null else t.optString("project", null),
-                entry = if (t.isNull("entry")) null else t.optString("entry", null),
+                project = if (t.isNull("project")) null else t.optString("project"),
+                entry = if (t.isNull("entry")) null else t.optString("entry"),
             )
         }
         val contextsArr = obj.getJSONArray("contexts")

@@ -730,7 +730,7 @@ fun SettingsDialog(
     val secretVisual = if (showSecret) VisualTransformation.None else PasswordVisualTransformation()
     val secretKeyboard = KeyboardOptions(
         keyboardType = KeyboardType.Password,
-        autoCorrect = false,
+        autoCorrectEnabled = false,
     )
 
     AlertDialog(
