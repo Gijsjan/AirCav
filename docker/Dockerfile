@@ -16,7 +16,7 @@ ENV ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}
 ENV PATH=$PATH:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:/opt/gradle/bin:${CARGO_HOME}/bin
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        unzip curl xz-utils git ca-certificates \
+        unzip curl xz-utils git ca-certificates build-essential pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # Android command-line tools + SDK/NDK packages
