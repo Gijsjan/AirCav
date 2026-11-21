@@ -131,7 +131,7 @@ all, build in Podman/Docker. You only need `podman` (or `docker`) itself.
 
 ```console
 $ git clone https://github.com/Gijsjan/AirCav.git && cd AirCav
-$ podman build -t aircav-builder -f docker/Dockerfile .    # ~10 min, one time
+$ ./update.sh                                           # pull + build + install in one go
 $ mkdir -p out
 $ mkdir -p .android-debug   # persists the debug keystore so APK signatures stay stable
 $ podman run --rm -v "$PWD":/work:Z -v "$PWD/.android-debug":/root/.android \
