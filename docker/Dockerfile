@@ -6,7 +6,7 @@
 #   podman run --rm -v "$PWD":/work -e CARGO_TARGET_DIR=/work/rust/target aircav-builder
 #   # APK lands in ./out/app-debug.apk
 
-FROM eclipse-temurin:17-jdk-jammy
+FROM docker.io/eclipse-temurin:17-jdk-jammy
 
 ENV ANDROID_HOME=/opt/android-sdk \
     CARGO_HOME=/opt/cargo \
