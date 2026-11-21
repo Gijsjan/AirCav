@@ -91,7 +91,7 @@ sealed interface Command {
 
 private val taskAdd = Regex("^(?:task|taak)\\s+add\\s+(.+)$", RegexOption.IGNORE_CASE)
 private val taskActNumFirst =
-    Regex("^(?:task|taak)\\s+(\\d+)\\s+(delete|done|complete|verwijder|verwijderen|remove)\\b", RegexOption.IGNORE_CASE)
+    Regex("^(?:task|taak)\\s+(\\d+)[.,;:?]?\\s*(delete|done|complete|verwijder|verwijderen|remove)\\b", RegexOption.IGNORE_CASE)
 
 private fun actionOf(verb: String): String =
     if (verb.equals("delete", true) || verb.equals("remove", true) ||
