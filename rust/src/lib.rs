@@ -140,10 +140,15 @@ pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_listTasks(
                 .filter(|tag| !tag.is_synthetic())
                 .map(|tag| tag.to_string())
                 .collect::<Vec<String>>();
-            let project = t.get_taskmap().get("project").cloned();
+            let uuid = t.get_uuid().to_string();
+            let description = t.get_description().to_string();
+            let project = t
+                .into_task_data()
+                .get("project")
+                .map(|p| p.to_string());
             tasks.push(TaskInfo {
-                uuid: t.get_uuid().to_string(),
-                description: t.get_description().to_string(),
+                uuid,
+                description,
                 tags,
                 project,
             });
