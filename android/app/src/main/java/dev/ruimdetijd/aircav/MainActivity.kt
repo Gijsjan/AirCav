@@ -113,6 +113,13 @@ fun AirCavApp() {
     var voiceProcessing by remember { mutableStateOf(false) }
     val recorder = remember { VoiceRecorder(activity) }
 
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        voiceInput = false
+        if (!granted) {
+            Toast.makeText(activity, "Microphone permission denied", Toast.LENGTH_SHORT).show()
+        }
     }
 
     fun refresh() {
