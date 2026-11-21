@@ -113,7 +113,7 @@ class SettingsStore(context: Context) {
         val enc = encrypt(value)
         if (enc == null) {
             keystoreError = "Android Keystore unavailable: secret NOT stored securely"
-            Log.e("AirCavSettings", keystoreError)
+            Log.e("AirCavSettings", keystoreError ?: "keystore failure")
             prefs.edit().putString(name, "").apply() // never silent plaintext
             return
         }

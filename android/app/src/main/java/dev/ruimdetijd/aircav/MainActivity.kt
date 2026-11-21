@@ -44,7 +44,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.DismissValue
+import androidx.compose.material3.swipeable.DismissValue
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -203,6 +203,15 @@ fun AirCavApp() {
 
     // snackbar with Undo: Taskchampion wrote an UndoPoint before the change,
     // so a single undo() call reverses it
+    fun pushAfterChange() {
+        refresh()
+        if (settingsStore.load().syncUrl.isBlank()) return
+        syncJob?.cancel()
+        syncJob = scope.launch {
+            delay(2000)
+            doSync(manual = false)
+        }
+    }
     fun reportChange(message: String) {
         scope.launch {
             val result = snackbarHostState.showSnackbar(
@@ -227,15 +236,6 @@ fun AirCavApp() {
     }
 
     // refresh the UI right away (local), debounce the network sync (2 s of quiet)
-    fun pushAfterChange() {
-        refresh()
-        if (settingsStore.load().syncUrl.isBlank()) return
-        syncJob?.cancel()
-        syncJob = scope.launch {
-            delay(2000)
-            doSync(manual = false)
-        }
-    }
 
     fun manualSync() {
         if (settingsStore.load().syncUrl.isBlank()) {
@@ -282,32 +282,6 @@ fun AirCavApp() {
     }
 
 
-    fun mistralVoice(apiKey: String, wav: java.io.File) {
-        voiceProcessing = true
-        scope.launch(Dispatchers.IO) {
-            val result = runCatching {
-                val transcript = MistralApi.transcribe(apiKey, wav)
-                transcript
-            }
-            recorder.discard()
-            withContext(Dispatchers.Main) {
-                voiceProcessing = false
-                result.onFailure { e ->
-                    Log.e(TAG, "voice failed", e)
-                    VoiceLog.append(activity) {
-                        put("error", e.message ?: "unknown error")
-                    }
-                    Toast.makeText(activity, "voice failed: ${e.message}", Toast.LENGTH_LONG).show()
-                }
-                result.onSuccess { text ->
-                    VoiceLog.append(activity) {
-                        put("transcript", text)
-                    }
-                    handleInput(text, true)
-                }
-            }
-        }
-    }
     fun complete(task: TaskItem) {
         lastAction = "done"
         scope.launch(Dispatchers.IO) {
@@ -373,6 +347,33 @@ fun AirCavApp() {
                     }
                 }
                 Toast.makeText(activity, "Could not understand", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun mistralVoice(apiKey: String, wav: java.io.File) {
+        voiceProcessing = true
+        scope.launch(Dispatchers.IO) {
+            val result = runCatching {
+                val transcript = MistralApi.transcribe(apiKey, wav)
+                transcript
+            }
+            recorder.discard()
+            withContext(Dispatchers.Main) {
+                voiceProcessing = false
+                result.onFailure { e ->
+                    Log.e(TAG, "voice failed", e)
+                    VoiceLog.append(activity) {
+                        put("error", e.message ?: "unknown error")
+                    }
+                    Toast.makeText(activity, "voice failed: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+                result.onSuccess { text ->
+                    VoiceLog.append(activity) {
+                        put("transcript", text)
+                    }
+                    handleInput(text, true)
+                }
             }
         }
     }
