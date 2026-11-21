@@ -15,7 +15,12 @@ APK=out/app-debug.apk
 TARGET="${1:-${WIRELESS_PORT:-}}"
 
 echo "==> git pull"
-git pull --ff-only
+PULL_OUT="$(git pull --ff-only 2>&1 || true)"
+echo "$PULL_OUT"
+if [ -z "${FORCE:-}" ] && echo "$PULL_OUT" | grep -q "Already up to date"; then
+    echo "Nothing to do. (run with FORCE=1 to rebuild and reinstall anyway)"
+    exit 0
+fi
 
 if ! podman image exists "$TAG"; then
     echo "==> building container image (first time, ~10 min)"
