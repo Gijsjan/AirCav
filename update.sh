@@ -22,18 +22,22 @@ if [ -z "${FORCE:-}" ] && echo "$PULL_OUT" | grep -q "Already up to date"; then
     exit 0
 fi
 
+build_image() {
+    echo "==> building container image (~10 min)"
+    podman build \
+        --label "io.aircav.dockerfile_sha=$(sha256sum docker/Dockerfile | cut -d' ' -f1)" \
+        -t "$TAG" -f docker/Dockerfile .
+}
+
 if ! podman image exists "$TAG"; then
-    echo "==> building container image (first time, ~10 min)"
-    podman build -t "$TAG" -f docker/Dockerfile .
-fi
-# rebuild when the Dockerfile changed after the image was created
-IMG_CREATED=$(podman image inspect "$TAG" --format '{{.Created}}' 2>/dev/null || echo 0)
-[ "$IMG_CREATED" != "0" ] || { echo "ERROR: no image $TAG" >&2; exit 1; }
-IMG_EPOCH=$(date -d "$IMG_CREATED" +%s 2>/dev/null || stat -c %Y "$IMG_CREATED" 2>/dev/null || echo 0)
-DF_EPOCH=$(stat -c %Y docker/Dockerfile)
-if [ "$DF_EPOCH" -gt "$IMG_EPOCH" ]; then
-    echo "==> Dockerfile changed; rebuilding container image (~10 min)"
-    podman build -t "$TAG" -f docker/Dockerfile .
+    build_image
+else
+    # deterministic freshness: the Dockerfile hash is stored as an image label
+    IMG_SHA=$(podman image inspect "$TAG" --format '{{.Labels.io_aircav_dockerfile_sha}}' 2>/dev/null || true)
+    DF_SHA=$(sha256sum docker/Dockerfile | cut -d' ' -f1)
+    if [ "$IMG_SHA" != "$DF_SHA" ]; then
+        build_image
+    fi
 fi
 
 echo "==> building APK (container)"
