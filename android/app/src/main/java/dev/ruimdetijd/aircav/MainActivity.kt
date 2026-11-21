@@ -101,6 +101,11 @@ private fun parseCommand(text: String): ParsedCommand? {
         }
     }
 
+    // spoken transcripts arrive capitalized with sentence punctuation
+    fun normalizeProject(value: String): String =
+        value.trim().trim('.', ',', '!', '?', ';', ':').lowercase()
+    if (project.isNotEmpty()) project = normalizeProject(project)
+
     // "project foo" as two tokens
     val wordsIter = words.toList()
     val keep = mutableListOf<String>()
@@ -111,7 +116,8 @@ private fun parseCommand(text: String): ParsedCommand? {
             continue
         }
         if ((w == "project" || w == "project:") && wordsIter.size > wordsIter.indexOf(w) + 1) {
-            project = wordsIter[wordsIter.indexOf(w) + 1]
+            val next = wordsIter[wordsIter.indexOf(w) + 1]
+            if (project.isEmpty()) project = normalizeProject(next)
             skip = true
             continue
         }
@@ -436,7 +442,7 @@ fun AirCavApp() {
                     fun matches(t: TaskItem): Boolean {
                         val chip = selectedChip ?: return true
                         return if (chip.project != null) {
-                            t.project == chip.project
+                            t.project?.equals(chip.project, ignoreCase = true) == true
                         } else {
                             chip.name in t.tags
                         }
