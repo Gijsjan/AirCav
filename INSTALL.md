@@ -98,10 +98,6 @@ To reinstall after building a new version, rerun the same `adb install -r` comma
    * **Sync server URL** — e.g. `http://100.x.y.z:8080` (your server's Tailscale IP/port)
    * **Client ID / Encryption secret** — prefilled with generated values;
      use the same values on your desktop Taskwarrior to share one task list
-   * **Mistral API key** *(optional)* — from [console.mistral.ai](https://console.mistral.ai);
-     with it, the mic button records in-app and uses Mistral (Voxtral for speech
-     + a small model that turns the transcript into a `description` + tags).
-     Leave it blank to use your phone's built-in speech recognizer.
 3. Tap **Save & sync** — a "Synced" toast confirms it works.
 
 ## 6. Update / rebuild later
@@ -122,7 +118,7 @@ If the Rust library changed: rerun step 1 first.
 | Gradle sync fails: "failed to find NDK" | Open the project once in Android Studio, let it install SDK 34 + NDK |
 | App opens but list stays empty | No tasks yet; type `buy milk +errands` below to test |
 | "sync failed" toast | Check server URL, that `taskchampion-sync-server` is running, and that you can open the URL in the phone's web browser while Tailscale is up |
-| No Android speech recognition without Mistral key | Some phones lack a system recognizer — set a Mistral API key to use Voxtral instead |
+| Mic says no speech recognizer / recognition fails | Check the phone's offline speech model: Settings → System → Languages & input → Speech services → download offline model |
 
 ## Option C — build inside a container (no host installs)
 

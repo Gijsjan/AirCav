@@ -74,7 +74,8 @@ If your desktop Taskwarrior also syncs to this server with the same client ID an
 ## Usage
 
 * Type a line like `buy milk +home` — words starting with `+` or `@` become tags/contexts, the rest becomes the description.
-* Tap the mic icon and speak a task (you can speak tags the same way).
+* Tap the mic icon and speak a task — on-device recognition, never uploaded
+  (speak tags like "+home" the same way as typing).
 * The horizontal filter chips list all tags/contexts present in your tasks; tap one to filter.
 * Checkbox completes a task; trash icon deletes (status Deleted) it.
 * The cloud button forces a manual sync; every change is also synced automatically if a server URL is configured.
@@ -110,20 +111,17 @@ Google account is required, and you can point the emulator's sync URL at
 
 ## Voice input & privacy
 
-Two modes, chosen automatically:
+Voice input uses the phone's **on-device speech recognition only**
+(`EXTRA_PREFER_OFFLINE`). No Mistral, no LLM, no cloud speech service, and no
+fallback: your voice never leaves the phone. Speech becomes text with the same
+tag parsing as typed input (`+tag` spoken as "plus tag" works too).
 
-* **Mistral mode** (recommended; needs a Mistral API key in Settings): the app
-  records audio itself with the microphone (max 60 s) and sends the WAV file to
-  exactly one place — Mistral's API. Voxtral transcribes it, a small Mistral
-  model turns the transcript into `{"description", "tags"}`, and the task is
-  added locally, then synced over Tailscale. No Google Play services, no
-  system speech service.
-* **System mode** (no API key): falls back to Android's `SpeechRecognizer`.
-  On most phones this hands your voice to the default (usually Google) speech
-  service, which is outside your control — that's why Mistral mode exists.
+If the device has no offline speech model installed, tapping the mic shows a
+message instead of sending audio anywhere. (Most phones can download the
+offline model under Settings → System → Languages & input → Speech services.)
 
-Either way, your task list itself never leaves your devices except as
-end-to-end-encrypted blobs to your own sync server.
+Your task list never leaves your devices except as end-to-end-encrypted
+blobs to your own sync server.
 
 ## Project layout
 

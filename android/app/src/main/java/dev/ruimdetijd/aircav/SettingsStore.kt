@@ -16,7 +16,6 @@ data class Settings(
     val syncUrl: String,
     val clientId: String,
     val encryptionSecret: String,
-    val mistralApiKey: String,
 )
 
 class SettingsStore(context: Context) {
@@ -103,13 +102,15 @@ class SettingsStore(context: Context) {
             val secret = AirCavLib.newUuid().replace("-", "")
             prefs.edit().putString("client_id", clientId).putString("sync_url", "").apply()
             putSecret("encryption_secret", secret)
-            putSecret("mistral_api_key", "")
+        }
+        // drop legacy values from pre-offline-voice versions
+        if (prefs.contains("mistral_api_key")) {
+            prefs.edit().remove("mistral_api_key").apply()
         }
         return Settings(
             syncUrl = prefs.getString("sync_url", "") ?: "",
             clientId = prefs.getString("client_id", "") ?: "",
             encryptionSecret = getSecret("encryption_secret", ""),
-            mistralApiKey = getSecret("mistral_api_key", ""),
         )
     }
 
@@ -119,7 +120,6 @@ class SettingsStore(context: Context) {
             .putString("client_id", settings.clientId.trim())
             .apply()
         putSecret("encryption_secret", settings.encryptionSecret)
-        putSecret("mistral_api_key", settings.mistralApiKey.trim())
     }
 }
 
