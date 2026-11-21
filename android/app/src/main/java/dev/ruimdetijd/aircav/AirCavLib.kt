@@ -38,6 +38,9 @@ object AirCavLib {
     external fun sync(handle: Long)
 
     @JvmStatic
+    external fun undo(handle: Long): Boolean
+
+    @JvmStatic
     external fun close(handle: Long)
 
     fun dataDir(context: Context): File =

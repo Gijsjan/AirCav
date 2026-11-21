@@ -37,6 +37,27 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import android.os.Build
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.DismissValue
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -73,8 +94,15 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
-            MaterialTheme {
+            val dark = isSystemInDarkTheme()
+            val scheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (dark) dynamicDarkColorScheme(this) else dynamicLightColorScheme(this)
+            } else {
+                if (dark) darkColorScheme() else lightColorScheme()
+            }
+            MaterialTheme(colorScheme = scheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
@@ -95,6 +123,7 @@ fun AirCavApp() {
     val context = LocalContext.current
     val activity = context as? ComponentActivity ?: return
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val settingsStore = remember { SettingsStore(context) }
     val repo = remember { TaskRepository(context, settingsStore) }
@@ -117,6 +146,7 @@ fun AirCavApp() {
     var pendingDelete by remember { mutableStateOf<TaskItem?>(null) }
     var voiceInput by remember { mutableStateOf(false) }
     var voiceProcessing by remember { mutableStateOf(false) }
+    var recSeconds by remember { mutableStateOf(0) }
     val recorder = remember { VoiceRecorder(activity) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -174,6 +204,33 @@ fun AirCavApp() {
         }
     }
 
+    var lastAction by remember { mutableStateOf("") }
+
+    // snackbar with Undo: Taskchampion wrote an UndoPoint before the change,
+    // so a single undo() call reverses it
+    fun reportChange(message: String) {
+        scope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message,
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                lastAction = ""
+                scope.launch(Dispatchers.IO) {
+                    val undone = runCatching { repo.ensureOpen(); repo.undo() }
+                    withContext(Dispatchers.Main) {
+                        undone.onFailure { e ->
+                            Log.e(TAG, "undo failed", e)
+                            Toast.makeText(activity, e.message ?: "undo failed", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    pushAfterChange()
+                }
+            }
+        }
+    }
+
     // refresh the UI right away (local), debounce the network sync (2 s of quiet)
     fun pushAfterChange() {
         refresh()
@@ -201,15 +258,25 @@ fun AirCavApp() {
     fun submitParsed(description: String, tags: List<String>, project: String) {
         busy = true
         scope.launch(Dispatchers.IO) {
+            // selected context applies to new tasks (taskwarrior behaviour)
+            val projectToUse =
+                if (project.isEmpty()) {
+                    contextDefs.firstOrNull { it.name == selectedContext }?.project ?: ""
+                } else {
+                    project
+                }
             val result = runCatching {
                 repo.ensureOpen()
-                repo.add(description, tags, project)
+                repo.add(description, tags, projectToUse)
                 "ok"
             }
             withContext(Dispatchers.Main) {
                 if (result.isSuccess) inputText = ""
                 busy = false
-                if (result.isSuccess) pushAfterChange() else {
+                if (result.isSuccess) {
+                    reportChange("Added: $description" + if (projectToUse.isNotEmpty()) " #$projectToUse" else "")
+                    pushAfterChange()
+                } else {
                     result.onFailure { e ->
                         Log.e(TAG, "add failed", e)
                         Toast.makeText(activity, e.message ?: "add failed", Toast.LENGTH_LONG).show()
@@ -246,25 +313,29 @@ fun AirCavApp() {
             }
         }
     }
-    fun complete(uuid: String) {
+    fun complete(task: TaskItem) {
+        lastAction = "done"
         scope.launch(Dispatchers.IO) {
             runCatching {
                 repo.ensureOpen()
-                repo.complete(uuid)
+                repo.complete(task.uuid)
             }
             withContext(Dispatchers.Main) {
+                reportChange("Done: ${task.description}")
                 pushAfterChange()
             }
         }
     }
 
-    fun remove(uuid: String) {
+    fun remove(task: TaskItem) {
+        lastAction = "delete"
         scope.launch(Dispatchers.IO) {
             runCatching {
                 repo.ensureOpen()
-                repo.remove(uuid)
+                repo.remove(task.uuid)
             }
             withContext(Dispatchers.Main) {
+                reportChange("Deleted: ${task.description}")
                 pushAfterChange()
             }
         }
@@ -294,10 +365,10 @@ fun AirCavApp() {
                 if (target == null) {
                     Toast.makeText(activity, "No task #${cmd.number}", Toast.LENGTH_SHORT).show()
                 } else if (cmd.action == "delete") {
+                    lastAction = "delete"
                     pendingDelete = target
                 } else {
-                    Toast.makeText(activity, "Done: ${target.description}", Toast.LENGTH_SHORT).show()
-                    complete(target.uuid)
+                    complete(target)
                 }
             }
             null -> {
@@ -323,6 +394,7 @@ fun AirCavApp() {
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("AirCav") },
@@ -388,6 +460,56 @@ fun AirCavApp() {
                     .fillMaxWidth(),
                 contentAlignment = if (busy && tasks.isEmpty()) Alignment.Center else Alignment.TopStart,
             ) {
+                FloatingActionButton(
+                    onClick = {
+                        val granted = ContextCompat.checkSelfPermission(
+                            activity, Manifest.permission.RECORD_AUDIO,
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (!granted) {
+                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            return@FloatingActionButton
+                        }
+                        val apiKey = settingsStore.load().mistralApiKey
+                        if (!MistralApi.hasKey(apiKey)) {
+                            Toast.makeText(activity, "Set a Mistral API key in settings", Toast.LENGTH_SHORT).show()
+                            showSettings = true
+                            return@FloatingActionButton
+                        }
+                        if (recorder.isRecording) {
+                            voiceInput = false
+                            val wav = recorder.stop()
+                            if (wav == null) {
+                                Toast.makeText(activity, "Nothing recorded", Toast.LENGTH_SHORT).show()
+                            } else {
+                                mistralVoice(apiKey, wav)
+                            }
+                        } else {
+                            if (!recorder.start { activity.runOnUiThread { voiceInput = false } }) {
+                                voiceInput = false
+                                Toast.makeText(activity, "Cannot start recording", Toast.LENGTH_SHORT).show()
+                            } else {
+                                voiceInput = true
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp),
+                    containerColor =
+                        if (recorder.isRecording) {
+                            MaterialTheme.colorScheme.errorContainer
+                        } else {
+                            MaterialTheme.colorScheme.primaryContainer
+                        },
+                ) {
+                    if (voiceProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    } else if (recorder.isRecording) {
+                        Icon(Icons.Filled.Stop, contentDescription = "Stop recording")
+                    } else {
+                        Icon(Icons.Filled.Mic, contentDescription = "Add task by voice")
+                    }
+                }
                 if (busy && tasks.isEmpty()) {
                     CircularProgressIndicator()
                 } else {
@@ -404,54 +526,117 @@ fun AirCavApp() {
                         .filter { matches(it) }
                         .sortedByDescending { it.entry ?: "" }
                     if (visible.isEmpty()) {
-                        Text(
-                            "No tasks yet.\nType below or tap the mic to add one.",
-                            modifier = Modifier.padding(16.dp),
-                            color = MaterialTheme.colorScheme.outline,
-                        )
+                        Column(Modifier.padding(16.dp)) {
+                            Text(
+                                if (selectedContext == null) {
+                                    "No tasks yet.\nType below or tap the mic to add one."
+                                } else {
+                                    "Nothing in ${selectedContext}"
+                                },
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                            if (selectedContext != null) {
+                                TextButton(onClick = { selectContext(null) }) {
+                                    Text("show all")
+                                }
+                            }
+                        }
                     }
                     LazyColumn {
                         items(visible.distinctBy { it.uuid }, key = { it.uuid }) { task ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Checkbox(
-                                    checked = false,
-                                    onCheckedChange = { complete(task.uuid) },
-                                )
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(vertical = 12.dp),
-                                ) {
-                                    Text(
-                                        (task.id?.let { "$it. " } ?: "") + task.description,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                    )
-                                    if (task.tags.isNotEmpty() || task.project != null) {
-                                        val bits = buildList {
-                                            task.project?.let { add("#$it") }
-                                            addAll(task.tags.map { "+$it" })
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { value ->
+                                    when (value) {
+                                        DismissValue.DismissedToEnd -> {
+                                            complete(task) // swipe right
+                                            true
                                         }
-                                        Text(
-                                            bits.joinToString(" "),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
+                                        DismissValue.DismissedToStart -> {
+                                            remove(task) // swipe left
+                                            true
+                                        }
+                                        else -> false
                                     }
-                                }
-                                IconButton(onClick = { remove(task.uuid) }) {
-                                    Icon(
-                                        Icons.Filled.Delete,
-                                        contentDescription = "Delete",
-                                        tint = MaterialTheme.colorScheme.outline,
-                                    )
+                                },
+                            )
+                            SwipeToDismissBox(
+                                state = dismissState,
+                                enableDismissFromStartToEnd = true,
+                                enableDismissFromEndToStart = true,
+                                backgroundContent = {
+                                    // simple direction indicator
+                                    Row(
+                                        Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 24.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Icon(Icons.Filled.Done, contentDescription = "Done")
+                                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                                    }
+                                },
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surface),
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(vertical = 12.dp, horizontal = 8.dp),
+                                    ) {
+                                        Text(
+                                            (task.id?.let { "$it. " } ?: "") + task.description,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                        )
+                                        if (task.tags.isNotEmpty() || task.project != null) {
+                                            val bits = buildList {
+                                                task.project?.let { add("#$it") }
+                                                addAll(task.tags.map { "+$it" })
+                                            }
+                                            Text(
+                                                bits.joinToString(" "),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
+            }
+
+            // active context applies to new tasks (taskwarrior-style)
+            val activeCtx = chips.firstOrNull { it.name == selectedContext }?.project
+
+            if (activeCtx != null) {
+                AssistChip(
+                    onClick = { selectContext(null) },
+                    label = { Text("-> $selectedContext (x)") },
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+            }
+
+            // recording timer (max 60 s per the recorder)
+            if (voiceInput) {
+                LaunchedEffect(Unit) {
+                    recSeconds = 0
+                    while (voiceInput) {
+                        delay(1000)
+                        recSeconds += 1
+                    }
+                }
+                Text(
+                    "rec ${recSeconds}s/60",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
             }
 
             Row(
@@ -463,56 +648,26 @@ fun AirCavApp() {
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
-                    placeholder = { Text("buy milk +home") },
+                    placeholder = {
+                        Text(
+                            if (activeCtx != null) {
+                                "-> $selectedContext: buy milk"
+                            } else {
+                                "buy milk +home"
+                            },
+                        )
+                    },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = { if (inputText.isNotBlank()) submit(inputText) },
+                    ),
                 )
                 IconButton(
                     onClick = { if (inputText.isNotBlank()) submit(inputText) },
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = "Add task")
-                }
-                IconButton(
-                    onClick = {
-                        val granted = ContextCompat.checkSelfPermission(
-                            activity, Manifest.permission.RECORD_AUDIO,
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (!granted) {
-                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            return@IconButton
-                        }
-                        val apiKey = settingsStore.load().mistralApiKey
-                        if (!MistralApi.hasKey(apiKey)) {
-                            Toast.makeText(activity, "Set a Mistral API key in settings", Toast.LENGTH_SHORT).show()
-                            showSettings = true
-                            return@IconButton
-                        }
-                        if (recorder.isRecording) {
-                            voiceInput = false
-                            val wav = recorder.stop()
-                            if (wav == null) {
-                                Toast.makeText(activity, "Nothing recorded", Toast.LENGTH_SHORT).show()
-                            } else {
-                                mistralVoice(apiKey, wav)
-                            }
-                        } else {
-                            if (!recorder.start { activity.runOnUiThread { voiceInput = false } }) {
-                                voiceInput = false
-                                Toast.makeText(activity, "Cannot start recording", Toast.LENGTH_SHORT).show()
-                            } else {
-                                voiceInput = true
-                                Toast.makeText(activity, "Recording... tap again to stop", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
-                ) {
-                    if (voiceProcessing) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                    } else if (voiceInput) {
-                        Icon(Icons.Filled.Stop, contentDescription = "Stop recording")
-                    } else {
-                        Icon(Icons.Filled.Mic, contentDescription = "Add task by voice")
-                    }
                 }
             }
         }
@@ -532,7 +687,7 @@ fun AirCavApp() {
                 TextButton(
                     onClick = {
                         pendingDelete = null
-                        remove(target.uuid)
+                        remove(target)
                     },
                 ) { Text("Delete") }
             },

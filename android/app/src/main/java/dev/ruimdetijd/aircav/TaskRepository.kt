@@ -54,4 +54,7 @@ class TaskRepository(
     fun sync() {
         AirCavLib.sync(handle)
     }
+
+    @Synchronized
+    fun undo(): Boolean = AirCavLib.undo(handle)
 }

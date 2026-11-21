@@ -290,6 +290,31 @@ pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_removeTask(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_undo(
+    mut env: JNIEnv,
+    _class: JClass,
+    ptr: jlong,
+) -> jboolean {
+    let Some(mut h) = lock(&mut env, ptr) else {
+        return false.into();
+    };
+    let result: Result<bool, String> = (|| {
+        let ops = h.replica.get_undo_operations().map_err(err_string)?;
+        if ops.is_empty() {
+            return Ok(false);
+        }
+        h.replica.commit_reversed_operations(ops).map_err(err_string)
+    })();
+    match result {
+        Ok(done) => done.into(),
+        Err(e) => {
+            throw(&mut env, "java/lang/RuntimeException", &e);
+            false.into()
+        }
+    }
+}
+
+#[no_mangle]
 pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_sync(
     mut env: JNIEnv,
     _class: JClass,
