@@ -44,7 +44,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.swipeable.DismissValue
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -543,11 +543,11 @@ fun AirCavApp() {
                             val dismissState = rememberSwipeToDismissBoxState(
                                 confirmValueChange = { value ->
                                     when (value) {
-                                        DismissValue.DismissedToEnd -> {
+                                        SwipeToDismissBoxValue.StartToEnd -> {
                                             complete(task) // swipe right
                                             true
                                         }
-                                        DismissValue.DismissedToStart -> {
+                                        SwipeToDismissBoxValue.EndToStart -> {
                                             remove(task) // swipe left
                                             true
                                         }
