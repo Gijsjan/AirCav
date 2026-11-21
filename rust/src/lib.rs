@@ -52,7 +52,13 @@ fn lock(env: &mut JNIEnv, ptr: jlong) -> Option<std::sync::MutexGuard<'static, R
 }
 
 fn err_string(e: taskchampion::Error) -> String {
-    format!("error: {e}")
+    let mut parts = vec![format!("error: {e}")];
+    if let taskchampion::Error::Other(e) = &e {
+        for cause in e.chain().skip(1) {
+            parts.push(cause.to_string());
+        }
+    }
+    parts.join(": ")
 }
 
 #[no_mangle]
