@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Runs inside the container (see docker/Dockerfile); repo mounted at /work.
 cd /work/rust
-cargo ndk -t arm64 -t arm build --release -o ../android/app/src/main/jniLibs
+cargo ndk -t arm64-v8a -t armeabi-v7a build --release -o ../android/app/src/main/jniLibs
 
 cd /work/android
 gradle --no-daemon assembleDebug
