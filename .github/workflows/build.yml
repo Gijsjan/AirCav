@@ -1,0 +1,24 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build builder image
+        run: docker build -t aircav-builder -f docker/Dockerfile .
+
+      - name: Compile and assemble APK
+        run: |
+          mkdir -p out
+          docker run --rm -v "$PWD":/work -e CARGO_TARGET_DIR=/work/rust/target aircav-builder
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aircav-debug-apk
+          path: out/app-debug.apk
