@@ -133,7 +133,7 @@ all, build in Podman/Docker. You only need `podman` (or `docker`) itself.
 $ git clone https://github.com/Gijsjan/AirCav.git && cd AirCav
 $ podman build -t aircav-builder -f docker/Dockerfile .    # ~10 min, one time
 $ mkdir -p out
-$ podman run --rm -v "$PWD":/work -e CARGO_TARGET_DIR=/work/rust/target aircav-builder
+$ podman run --rm -v "$PWD":/work:Z -e CARGO_TARGET_DIR=/work/rust/target aircav-builder
 $ ls out/app-debug.apk                                      # your APK
 ```
 
@@ -145,7 +145,7 @@ the phone's Developer options (same screen as USB debugging), then:
 
 ```console
 $ podman run --rm -it -v "$PWD":/work --network host aircav-builder adb connect <phone-ip>:<port>
-$ podman run --rm -v "$PWD":/work --network host aircav-builder adb install -r /work/out/app-debug.apk
+$ podman run --rm -v "$PWD":/work:Z --network host aircav-builder adb install -r /work/out/app-debug.apk
 ```
 
 `adb` is already inside the image (`platform-tools`). With rootless Podman,
