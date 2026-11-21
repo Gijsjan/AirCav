@@ -15,6 +15,7 @@ struct ReplicaHandle {
 
 #[derive(Serialize)]
 struct TaskInfo {
+    id: Option<u32>,
     uuid: String,
     description: String,
     tags: Vec<String>,
@@ -134,6 +135,7 @@ pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_listTasks(
     };
     let result: Result<String, String> = (|| {
         let pending = h.replica.pending_tasks().map_err(err_string)?;
+        let working_set = h.replica.working_set().map_err(err_string)?;
         let mut tasks: Vec<TaskInfo> = Vec::with_capacity(pending.len());
         for t in pending {
             let tags = t
@@ -146,7 +148,9 @@ pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_listTasks(
             let data = t.into_task_data();
             let project = data.get("project").map(|p| p.to_string());
             let entry = data.get("entry").map(|e| e.to_string());
+            let id = working_set.by_uuid(uuid.parse().unwrap_or_default());
             tasks.push(TaskInfo {
+                id: id.map(|i| i as u32),
                 uuid,
                 description,
                 tags,

@@ -162,6 +162,7 @@ class SettingsStore(context: Context) {
 }
 
 data class TaskItem(
+    val id: Int?,
     val uuid: String,
     val description: String,
     val tags: List<String>,
@@ -183,6 +184,7 @@ object TaskParser {
             val t = arr.getJSONObject(i)
             val tagsArr = t.getJSONArray("tags")
             TaskItem(
+                id = if (t.isNull("id")) null else t.optInt("id", 0).takeIf { it > 0 },
                 uuid = t.getString("uuid"),
                 description = t.getString("description"),
                 tags = (0 until tagsArr.length()).map { j -> tagsArr.getString(j) },

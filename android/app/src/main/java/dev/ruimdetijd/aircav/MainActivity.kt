@@ -84,6 +84,8 @@ data class ParsedCommand(
     val project: String = "",
 )
 
+private val deleteCmd = Regex("^(?:delete|verwijder|remove)\\s+(\\d+)$", RegexOption.IGNORE_CASE)
+
 private fun parseCommand(text: String): ParsedCommand? {
     val words = text.trim().split(Regex("\\s+")).toMutableList()
     var project = ""
@@ -157,6 +159,7 @@ fun AirCavApp() {
     var busy by remember { mutableStateOf(true) }
     var isSyncing by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<TaskItem?>(null) }
     var voiceInput by remember { mutableStateOf(false) }
     var voiceProcessing by remember { mutableStateOf(false) }
     val recorder = remember { VoiceRecorder(activity) }
@@ -263,6 +266,17 @@ fun AirCavApp() {
     }
 
     fun submit(text: String) {
+        val del = deleteCmd.find(text.trim())
+        if (del != null) {
+            val num = del.groupValues[1].toIntOrNull()
+            val target = tasks.firstOrNull { it.id == num }
+            if (target == null) {
+                Toast.makeText(activity, "No task #$num", Toast.LENGTH_SHORT).show()
+                return
+            }
+            pendingDelete = target
+            return
+        }
         val parsed = parseCommand(text) ?: return
         submitParsed(parsed.description, parsed.tags, parsed.project)
     }
@@ -287,6 +301,21 @@ fun AirCavApp() {
                 result.onSuccess { text ->
                     VoiceLog.append(activity) {
                         put("transcript", text)
+                    }
+                    val del = deleteCmd.find(text.trim())
+                    if (del != null) {
+                        val num = del.groupValues[1].toIntOrNull()
+                        val target = tasks.firstOrNull { it.id == num }
+                        VoiceLog.append(activity) {
+                            put("delete_command", num)
+                            if (target != null) put("target", target.description)
+                        }
+                        if (target == null) {
+                            Toast.makeText(activity, "No task #$num", Toast.LENGTH_SHORT).show()
+                        } else {
+                            pendingDelete = target
+                        }
+                        return@onSuccess
                     }
                     val parsed = parseCommand(text)
                     if (parsed == null) {
@@ -437,7 +466,10 @@ fun AirCavApp() {
                                         .weight(1f)
                                         .padding(vertical = 12.dp),
                                 ) {
-                                    Text(task.description, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        (task.id?.let { "$it. " } ?: "") + task.description,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                    )
                                     if (task.tags.isNotEmpty() || task.project != null) {
                                         val bits = buildList {
                                             task.project?.let { add("#$it") }
@@ -525,6 +557,30 @@ fun AirCavApp() {
                 }
             }
         }
+    }
+
+    pendingDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Delete task?") },
+            text = {
+                Text(
+                    (target.id?.let { "#$it " } ?: "") + target.description +
+                        if (target.project != null) "  (project:${target.project})" else "",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingDelete = null
+                        remove(target.uuid)
+                    },
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+            },
+        )
     }
 
     if (showSettings) {
