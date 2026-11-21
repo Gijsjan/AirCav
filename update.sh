@@ -2,8 +2,9 @@
 # One-command update for a connected phone:
 #   git pull -> build APK in container -> adb install (smart upgrade)
 #
-# Usage:  ./update.sh [serial]        pass serial only if adb sees 2+ devices
-# Env:    WIRELESS_PORT=192.168.x.x:port   to prefer wireless over USB
+# Usage:  ./update.sh [serial-or-ip:port]   # pass to target a wireless device
+#                                              or pick among several devices
+# Env:    WIRELESS_PORT=192.168.x.x:port     # auto-connect to that phone
 # Needs:  podman; phone via USB (debugging on) or previously-paired wireless
 
 set -euo pipefail
@@ -11,10 +12,7 @@ cd "$(dirname "$0")"
 
 TAG=aircav-builder
 APK=out/app-debug.apk
-SERIAL=()
-if [ $# -gt 0 ]; then
-    SERIAL=(-s "$1")
-fi
+TARGET="${1:-${WIRELESS_PORT:-}}"
 
 echo "==> git pull"
 git pull --ff-only
@@ -24,15 +22,13 @@ if ! podman image exists "$TAG"; then
     podman build -t "$TAG" -f docker/Dockerfile .
 fi
 
-mkdir -p out .android-debug .adb
-
 echo "==> building APK (container)"
+mkdir -p out .android-debug
 podman run --rm \
     -v "$PWD":/work:Z \
     -v "$PWD/.android-debug":/root/.android:Z \
     -e CARGO_TARGET_DIR=/work/rust/target \
     "$TAG"
-
 [ -f "$APK" ] || { echo "ERROR: build produced no APK ($APK)" >&2; exit 1; }
 
 echo "==> locating adb (extracted from the image once)"
@@ -42,23 +38,50 @@ if [ ! -x "$ADB" ]; then
     chmod +x "$ADB"
 fi
 
-adb_list() { "$ADB" "${SERIAL[@]}" devices | awk 'NR>1 && $2=="device"{print $1}'; }
-
-if [ -n "${WIRELESS_PORT:-}" ]; then
-    echo "==> wireless: connecting to $WIRELESS_PORT"
-    "$ADB" connect "$WIRELESS_PORT" >/dev/null 2>&1 || true
-elif [ -z "$(adb_list)" ]; then
-    echo "==> no USB device; trying wireless"
-    read -r -p "Phone IP:port from the Wireless debugging screen: " PORT
-    [ -n "$PORT" ] && "$ADB" connect "$PORT" >/dev/null 2>&1 || true
+# if a target was given (arg or WIRELESS_PORT), connect to it first
+if [ -n "$TARGET" ]; then
+    echo "==> connecting to $TARGET"
+    "$ADB" connect "$TARGET"
 fi
 
-DEV="$(adb_list | head -n1)"
-[ -n "$DEV" ] || { echo "ERROR: no device (check cable, USB-debugging prompt on phone)" >&2; exit 1; }
+adb_list() {
+    "$ADB" devices | awk 'NR>1 && $2=="device"{print $1}'
+}
 
-echo "==> installing to $DEV"
-# try an in-place update first; fall back to uninstall only when the
-# signature truly changed (fresh keystore, i.e. once per install lineage)
+find_phone() {
+    DEV="$(adb_list | head -n1)"
+    [ -n "$DEV" ] && return 0
+    # transient states right after plug-in / daemon start: retry a few times
+    for _ in 1 2 3 4 5; do
+        sleep 2
+        DEV="$(adb_list | head -n1)"
+        [ -n "$DEV" ] && return 0
+    done
+    return 1
+}
+
+echo "==> looking for the phone"
+if ! find_phone; then
+    UNAUTH="$("$ADB" devices | awk 'NR>1 && $2=="unauthorized"{print $1}')"
+    if [ -n "$UNAUTH" ]; then
+        echo "ERROR: phone is visible but unauthorized — accept the 'Allow USB debugging?' prompt on the phone" >&2
+    else
+        echo "ERROR: no device found." >&2
+        echo "  - plug in via USB with USB debugging on, or" >&2
+        echo "  - re-run with:  WIRELESS_PORT=<ip>:<port> ./update.sh   (port from the phone's Wireless-debugging screen), or" >&2
+        echo "  - re-run with:  ./update.sh <ip>:<port>" >&2
+    fi
+    exit 1
+fi
+echo "    found: $DEV"
+
+# use the explicit serial only if the user passed one
+SERIAL=()
+if [ -n "$TARGET" ]; then
+    SERIAL=(-s "$TARGET")
+fi
+
+echo "==> installing to $DEV (in-place upgrade; falls back to clean install on signature change)"
 if ! "$ADB" "${SERIAL[@]}" install -r "$APK"; then
     echo "==> update refused (signature change); clean install"
     "$ADB" "${SERIAL[@]}" uninstall dev.ruimdetijd.aircav >/dev/null || true
