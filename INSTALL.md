@@ -133,7 +133,9 @@ all, build in Podman/Docker. You only need `podman` (or `docker`) itself.
 $ git clone https://github.com/Gijsjan/AirCav.git && cd AirCav
 $ podman build -t aircav-builder -f docker/Dockerfile .    # ~10 min, one time
 $ mkdir -p out
-$ podman run --rm -v "$PWD":/work:Z -e CARGO_TARGET_DIR=/work/rust/target aircav-builder
+$ mkdir -p .android-debug   # persists the debug keystore so APK signatures stay stable
+$ podman run --rm -v "$PWD":/work:Z -v "$PWD/.android-debug":/root/.android \
+    -e CARGO_TARGET_DIR=/work/rust/target aircav-builder
 $ ls out/app-debug.apk                                      # your APK
 ```
 
@@ -153,3 +155,9 @@ $ podman run --rm -v "$PWD":/work:Z --network host aircav-builder adb install -r
 and use the phone's IP directly. (Classic `adb install` over USB from the
 container is also possible with `--device /dev/bus/usb` but device passthrough
 is fiddly — wireless is the easy path.)
+
+**Debug keystore / signature note.** The debug signing key lives in the
+image-internal `$HOME/.android` — without the `.android-debug` volume mount
+above, every container build generates a fresh key, and `adb install -r`
+fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. If you ever hit that:
+`adb uninstall dev.ruimdetijd.aircav`, then install again.
