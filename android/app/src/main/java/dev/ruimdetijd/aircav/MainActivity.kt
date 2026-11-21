@@ -8,6 +8,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
@@ -116,21 +117,21 @@ fun AirCavApp() {
     val recorder = remember { VoiceRecorder(activity) }
     var voiceResult by remember { mutableStateOf<String?>(null) }
 
-    val speechLauncher = remember(activity) {
-        activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val text = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
-            voiceInput = false
-            if (!text.isNullOrBlank()) voiceResult = text
-        }
+    val speechLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val text = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+        voiceInput = false
+        if (!text.isNullOrBlank()) voiceResult = text
     }
-    val permissionLauncher = remember(activity) {
-        activity.registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            voiceInput = false
-            if (!granted) {
-                Toast.makeText(activity, "Microphone permission denied", Toast.LENGTH_SHORT).show()
-            }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        voiceInput = false
+        if (!granted) {
+            Toast.makeText(activity, "Microphone permission denied", Toast.LENGTH_SHORT).show()
         }
     }
 
