@@ -34,7 +34,7 @@ Then, from the repo root:
 
 ```console
 $ cd rust
-$ cargo ndk -t arm64 -t arm build --release -o ../android/app/src/main/jniLibs
+$ cargo ndk -t arm64-v8a -t armeabi-v7a build --release -o ../android/app/src/main/jniLibs
 ```
 
 This writes `libaircav.so` into `android/app/src/main/jniLibs/`,

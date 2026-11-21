@@ -46,7 +46,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-and
 cargo install cargo-ndk
 
 cd rust
-cargo ndk -t arm64 -t arm -t x86_64 -t x86 build --release \
+cargo ndk -t arm64-v8a -t armeabi-v7a build --release \
   -o ../android/app/src/main/jniLibs
 ```
 
