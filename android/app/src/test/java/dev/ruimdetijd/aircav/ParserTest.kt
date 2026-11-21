@@ -95,6 +95,27 @@ class ParserTest {
     }
 
     @Test
+    fun verbFirstCommand() {
+        // spoken transcript: "Task delete 35."
+        val cmd = parse("Task delete 35.")
+        assertTrue(cmd is Command.Act)
+        cmd as Command.Act
+        assertEquals(35, cmd.number)
+        assertEquals("delete", cmd.action)
+        val done = parse("taak verwijder 7")
+        done as Command.Act
+        assertEquals(7, done.number)
+        assertEquals("delete", done.action)
+    }
+
+    @Test
+    fun verbFirstWithTrailingWordsIsAnAdd() {
+        // only "task <verb> <n>" alone is a command
+        val cmd = parse("task delete old files")
+        assertTrue(cmd is Command.Add)
+    }
+
+    @Test
     fun projectHierarchyMatch() {
         assertTrue(matchesProject("home", "home"))
         assertTrue(matchesProject("home.klussen", "home"))

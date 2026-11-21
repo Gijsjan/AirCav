@@ -14,6 +14,8 @@ sealed interface Command {
 }
 
 private val taskAdd = Regex("^(?:task|taak)\\s+add\\s+(.+)$", RegexOption.IGNORE_CASE)
+private val taskActVerbFirst =
+    Regex("^(?:task|taak)\\s+(delete|done|complete|verwijder|verwijderen|remove)\\b[.,;:]?\\s*(\\d+)[.,;:?!]?\\s*$", RegexOption.IGNORE_CASE)
 private val taskActNumFirst =
     Regex("^(?:task|taak)\\s+(\\d+)[.,;:?]?\\s*(delete|done|complete|verwijder|verwijderen|remove)\\b", RegexOption.IGNORE_CASE)
 
@@ -33,10 +35,12 @@ fun parseInput(raw: String): Command.Add? {
     return parseCommand(text)
 }
 
-/** Parse `task <n> <verb>`; null when the input is not a numbered action. */
+/** Parse `task <n> <verb>` and `task <verb> <n>`; null when not a numbered action. */
 fun parseAct(raw: String): Command.Act? =
     taskActNumFirst.find(raw.trim())?.let { m ->
         Command.Act(m.groupValues[1].toInt(), actionOf(m.groupValues[2]))
+    } ?: taskActVerbFirst.find(raw.trim())?.let { m ->
+        Command.Act(m.groupValues[2].toInt(), actionOf(m.groupValues[1]))
     }
 
 /** Unit-testable full parse: command or plain add. */

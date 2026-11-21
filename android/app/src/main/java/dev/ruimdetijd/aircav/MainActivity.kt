@@ -508,6 +508,19 @@ fun AirCavApp() {
                         Icon(Icons.Filled.Mic, contentDescription = "Add task by voice")
                     }
                 }
+                if (voiceProcessing) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Transcribing...", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
                 if (busy && tasks.isEmpty()) {
                     CircularProgressIndicator()
                 } else {
