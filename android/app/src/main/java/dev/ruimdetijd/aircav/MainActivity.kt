@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -120,6 +121,7 @@ fun AirCavApp() {
     val activity = context as? ComponentActivity ?: return
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val listState = rememberLazyListState()
 
     val settingsStore = remember { SettingsStore(context) }
     val repo = remember { TaskRepository(context, settingsStore) }
@@ -267,7 +269,10 @@ fun AirCavApp() {
                 "ok"
             }
             withContext(Dispatchers.Main) {
-                if (result.isSuccess) inputText = ""
+                if (result.isSuccess) {
+                    inputText = ""
+                    scope.launch { listState.animateScrollToItem(0) }
+                }
                 busy = false
                 if (result.isSuccess) {
                     reportChange("Added: $description" + if (projectToUse.isNotEmpty()) " #$projectToUse" else "")
@@ -553,7 +558,7 @@ fun AirCavApp() {
                             }
                         }
                     }
-                    LazyColumn {
+                    LazyColumn(state = listState) {
                         items(visible.distinctBy { it.uuid }, key = { it.uuid }) { task ->
                             val dismissState = rememberSwipeToDismissBoxState(
                                 confirmValueChange = { value ->
