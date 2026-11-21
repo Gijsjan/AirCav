@@ -59,6 +59,7 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.Arrangement
 import dev.ruimdetijd.aircav.ui.theme.AirCavTheme
+import androidx.compose.ui.zIndex
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -490,6 +491,7 @@ fun AirCavApp() {
             ) {
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
+                        .zIndex(1f) // Box draws later children on top; the list sits after the FAB
                         .padding(16.dp),
                     containerColor =
                         if (recorder.isRecording) {
