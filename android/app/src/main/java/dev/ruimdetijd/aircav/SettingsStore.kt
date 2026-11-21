@@ -17,7 +17,20 @@ data class Settings(
     val clientId: String,
     val encryptionSecret: String,
     val mistralApiKey: String,
+    val contextsText: String,
 )
+
+data class ContextDef(val name: String, val project: String)
+
+fun parseContexts(text: String): List<ContextDef> =
+    text.lines().mapNotNull { line ->
+        val parts = line.split('=', limit = 2).map { it.trim() }
+        if (parts.size == 2 && parts[0].isNotEmpty() && parts[1].isNotEmpty()) {
+            ContextDef(parts[0], parts[1])
+        } else {
+            null
+        }
+    }
 
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -122,6 +135,7 @@ class SettingsStore(context: Context) {
             clientId = clientId,
             encryptionSecret = getSecret("encryption_secret", ""),
             mistralApiKey = getSecret("mistral_api_key", ""),
+            contextsText = prefs.getString("contexts", "") ?: "",
         )
     }
 
@@ -144,6 +158,7 @@ data class TaskItem(
     val uuid: String,
     val description: String,
     val tags: List<String>,
+    val project: String?,
 )
 
 data class TaskListResult(
@@ -163,6 +178,7 @@ object TaskParser {
                 uuid = t.getString("uuid"),
                 description = t.getString("description"),
                 tags = (0 until tagsArr.length()).map { j -> tagsArr.getString(j) },
+                project = if (t.isNull("project")) null else t.optString("project", null),
             )
         }
         val contextsArr = obj.getJSONArray("contexts")

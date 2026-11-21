@@ -109,6 +109,22 @@ machine (Android Studio → Device Manager → create a virtual phone → Run). 
 Google account is required, and you can point the emulator's sync URL at
 `10.0.2.2` to reach a sync server running on the same Linux host.
 
+## Contexts
+
+Taskwarrior contexts are *filters in `~/.taskrc`* (e.g. `context.nde=project:nde`),
+and that config does not sync with tasks. AirCav lets you define them in
+Settings instead: one per line in the form `name=project`, e.g.
+
+```
+nde=nde
+codere=rdt.codere
+home=home
+```
+
+Each defined context becomes a filter chip matching tasks with that project.
+If no contexts are defined, the chips fall back to the `+tags` on your pending
+tasks (and typed input `+tag` sets a tag; Taskwarrior shows tags as `+name`).
+
 ## Voice input & privacy
 
 Voice input uses **Mistral only**: the app records audio in its own process

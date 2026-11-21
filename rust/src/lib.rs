@@ -18,6 +18,7 @@ struct TaskInfo {
     uuid: String,
     description: String,
     tags: Vec<String>,
+    project: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -139,10 +140,12 @@ pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_listTasks(
                 .filter(|tag| !tag.is_synthetic())
                 .map(|tag| tag.to_string())
                 .collect::<Vec<String>>();
+            let project = t.get_taskmap().get("project").cloned();
             tasks.push(TaskInfo {
                 uuid: t.get_uuid().to_string(),
                 description: t.get_description().to_string(),
                 tags,
+                project,
             });
         }
         let mut contexts = tasks

@@ -107,6 +107,7 @@ fun AirCavApp() {
 
     var tasks by remember { mutableStateOf<List<TaskItem>>(emptyList()) }
     var contexts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var contextDefs by remember { mutableStateOf<List<ContextDef>>(emptyList()) }
     var selectedContext by remember { mutableStateOf<String?>(null) }
     var inputText by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(true) }
@@ -126,6 +127,7 @@ fun AirCavApp() {
     }
 
     fun refresh() {
+        contextDefs = parseContexts(settingsStore.load().contextsText)
         busy = true
         scope.launch(Dispatchers.IO) {
             val result = runCatching {
@@ -299,7 +301,14 @@ fun AirCavApp() {
                 .fillMaxSize()
                 .imePadding(),
         ) {
-            if (contexts.isNotEmpty()) {
+            // chip values: settings-defined contexts (name -> project), or tags as fallback
+            data class Chip(val name: String, val project: String?)
+            val chips = if (contextDefs.isNotEmpty()) {
+                contextDefs.map { Chip(it.name, it.project) }
+            } else {
+                contexts.map { Chip(it, null) }
+            }
+            if (chips.isNotEmpty()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -312,11 +321,13 @@ fun AirCavApp() {
                         label = { Text("all") },
                         modifier = Modifier.padding(4.dp),
                     )
-                    contexts.forEach { ctx ->
+                    chips.forEach { chip ->
                         FilterChip(
-                            selected = selectedContext == ctx,
-                            onClick = { selectedContext = if (selectedContext == ctx) null else ctx },
-                            label = { Text(ctx) },
+                            selected = selectedContext == chip.name,
+                            onClick = {
+                                selectedContext = if (selectedContext == chip.name) null else chip.name
+                            },
+                            label = { Text(chip.name) },
                             modifier = Modifier.padding(4.dp),
                         )
                     }
@@ -332,9 +343,16 @@ fun AirCavApp() {
                 if (busy && tasks.isEmpty()) {
                     CircularProgressIndicator()
                 } else {
-                    val visible = tasks.filter { t ->
-                        selectedContext == null || selectedContext in t.tags
+                    val selectedChip = chips.firstOrNull { it.name == selectedContext }
+                    fun matches(t: TaskItem): Boolean {
+                        val chip = selectedChip ?: return true
+                        return if (chip.project != null) {
+                            t.project == chip.project
+                        } else {
+                            chip.name in t.tags
+                        }
                     }
+                    val visible = tasks.filter { matches(it) }
                     if (visible.isEmpty()) {
                         Text(
                             "No tasks yet.\nType below or tap the mic to add one.",
@@ -358,9 +376,13 @@ fun AirCavApp() {
                                         .padding(vertical = 12.dp),
                                 ) {
                                     Text(task.description, style = MaterialTheme.typography.bodyLarge)
-                                    if (task.tags.isNotEmpty()) {
+                                    if (task.tags.isNotEmpty() || task.project != null) {
+                                        val bits = buildList {
+                                            task.project?.let { add("#$it") }
+                                            addAll(task.tags.map { "+$it" })
+                                        }
                                         Text(
-                                            task.tags.joinToString(" ") { "+$it" },
+                                            bits.joinToString(" "),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary,
                                         )
@@ -468,6 +490,7 @@ fun SettingsDialog(
     var clientId by remember { mutableStateOf(settings.clientId) }
     var secret by remember { mutableStateOf(settings.encryptionSecret) }
     var apiKey by remember { mutableStateOf(settings.mistralApiKey) }
+    var contextsText by remember { mutableStateOf(settings.contextsText) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -508,11 +531,18 @@ fun SettingsDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
+                OutlinedTextField(
+                    value = contextsText,
+                    onValueChange = { contextsText = it },
+                    label = { Text("Contexts (name=project, one per line)") },
+                    placeholder = { Text("nde=nde\ncodere=rdt.codere\nhome=home") },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(Settings(syncUrl, clientId, secret, apiKey)) },
+                onClick = { onSave(Settings(syncUrl, clientId, secret, apiKey, contextsText)) },
             ) { Text("Save & sync") }
         },
         dismissButton = {
