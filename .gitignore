@@ -1,0 +1,12 @@
+# Rust
+rust/target/
+**/*.so
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/jniLibs/
+.idea/
+*.iml
+.DS_Store
