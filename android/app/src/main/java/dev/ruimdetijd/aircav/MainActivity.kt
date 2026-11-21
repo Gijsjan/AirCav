@@ -451,11 +451,6 @@ fun AirCavApp() {
             }
 
             Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = if (busy && tasks.isEmpty()) Alignment.Center else Alignment.TopStart,
-            ) {
                 FloatingActionButton(
                     onClick = {
                         val granted = ContextCompat.checkSelfPermission(
@@ -488,6 +483,11 @@ fun AirCavApp() {
                             }
                         }
                     },
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = if (busy && tasks.isEmpty()) Alignment.Center else Alignment.TopStart,
+            ) {
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(16.dp),
