@@ -1,5 +1,6 @@
 package dev.ruimdetijd.aircav
 
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.DataOutputStream
@@ -9,6 +10,8 @@ import java.net.URL
 import java.util.UUID
 
 object MistralApi {
+    private const val TAG = "AirCavMistral"
+
     private const val BASE = "https://api.mistral.ai/v1"
     const val STT_MODEL = "voxtral-mini-latest"
 
@@ -36,10 +39,16 @@ object MistralApi {
             wav.inputStream().use { it.copyTo(out) }
             out.writeBytes("\r\n--$boundary--\r\n")
         }
-        val body = conn.inputStream.bufferedReader().readText()
-        conn.disconnect()
         val status = conn.responseCode
-        if (status !in 200..299) throw IllegalStateException("transcription failed ($status)")
+        if (status !in 200..299) {
+            val err = runCatching {
+                conn.errorStream?.bufferedReader()?.use { it.readText() }
+            }.getOrNull().orEmpty().take(500)
+            Log.e(TAG, "transcription failed ($status): $err")
+            throw IllegalStateException("transcription failed ($status): ${err.ifBlank { "no error body" }}")
+        }
+        val body = conn.inputStream.bufferedReader().use { it.readText() }
+        conn.disconnect()
         return JSONObject(body).getString("text").trim()
     }
 
