@@ -173,6 +173,11 @@ fun AirCavApp() {
 
     fun manualSync() {
         if (settingsStore.load().syncUrl.isBlank()) {
+            Toast.makeText(
+                activity,
+                "No sync server configured yet",
+                Toast.LENGTH_SHORT,
+            ).show()
             showSettings = true
             return
         }
