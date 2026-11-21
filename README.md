@@ -74,9 +74,12 @@ If your desktop Taskwarrior also syncs to this server with the same client ID an
 ## Usage
 
 * Type a line like `buy milk +home` — words starting with `+` or `@` become tags/contexts, the rest becomes the description.
-* Tap the mic, speak the task, tap again — recorded audio is transcribed by
-  Voxtral and turned into a task. Speak "+home" for a tag, and "project nde"
-  or "project:nde" to set the project directly (great with the context chips).
+* Tap the mic, speak, tap again — transcribed by Voxtral and applied as a
+  taskwarrior-style command:
+  - `task add buy milk` — add (or plain text without the `task` prefix)
+  - `task 23 delete` / `task 23 done` — operate on a task by number first
+  - `delete 23` / `verwijder 23` — verb-first also works
+  Say `project nde` in the task text to set the project (context chips).
 * The horizontal filter chips list all tags/contexts present in your tasks; tap one to filter.
 * Checkbox completes a task; trash icon deletes (status Deleted) it.
 * The cloud button forces a manual sync; every change is also synced automatically if a server URL is configured.

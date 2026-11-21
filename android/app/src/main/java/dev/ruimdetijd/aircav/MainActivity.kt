@@ -84,8 +84,42 @@ data class ParsedCommand(
     val project: String = "",
 )
 
-private val deleteCmd = Regex("^(?:delete|verwijder|remove)\\s+(\\d+)$", RegexOption.IGNORE_CASE)
+sealed interface Command {
+    data class Add(val description: String, val tags: List<String>, val project: String) : Command
+    data class Act(val number: Int, val action: String) : Command
+}
 
+private val taskAdd = Regex("^(?:task|taak)\\s+add\\s+(.+)$", RegexOption.IGNORE_CASE)
+private val taskActNumFirst =
+    Regex("^(?:task|taak)\\s+(\\d+)\\s+(delete|done|complete|verwijder|verwijderen|remove)\\b", RegexOption.IGNORE_CASE)
+private val taskActVerbFirst =
+    Regex("^(?:task|taak)?\\s*(delete|done|complete|verwijder|verwijderen|remove)\\s+(\\d+)\\b", RegexOption.IGNORE_CASE)
+// common mishearing of the English "delete" in Dutch speech: "de lead 34"
+private val deleteHomophone = Regex("^de\\s+(lead|lied|liet|lide)\\s+(\\d+)\\b", RegexOption.IGNORE_CASE)
+
+private fun actionOf(verb: String): String =
+    if (verb.equals("delete", true) || verb.equals("remove", true) ||
+        verb.equals("verwijder", true) || verb.equals("verwijderen", true)
+    ) "delete" else "done"
+
+// parse "task"-style CLI input; plain text becomes Add (with +tags and project:x)
+private fun parseInput(raw: String): Command? {
+    val text = raw.trim()
+    taskAdd.find(text)?.let { m ->
+        return parseCommand(m.groupValues[1])
+    }
+    taskActNumFirst.find(text)?.let { m ->
+        return Command.Act(m.groupValues[1].toInt(), actionOf(m.groupValues[2]))
+    }
+    taskActVerbFirst.find(text)?.let { m ->
+        return Command.Act(m.groupValues[2].toInt(), actionOf(m.groupValues[1]))
+    }
+    deleteHomophone.find(text)?.let { m ->
+        return Command.Act(m.groupValues[2].toInt(), "delete")
+    }
+    return parseCommand(text)
+}
+// extract description/tags/project from plain text ("buy milk +home project:work")
 private fun parseCommand(text: String): ParsedCommand? {
     val words = text.trim().split(Regex("\\s+")).toMutableList()
     var project = ""
@@ -104,19 +138,18 @@ private fun parseCommand(text: String): ParsedCommand? {
     // spoken transcripts arrive capitalized with sentence punctuation
     fun normalizeProject(value: String): String =
         value.trim().trim('.', ',', '!', '?', ';', ':').lowercase()
-    if (project.isNotEmpty()) project = normalizeProject(project)
 
     // "project foo" as two tokens
     val wordsIter = words.toList()
     val keep = mutableListOf<String>()
     var skip = false
-    for (w in wordsIter) {
+    for ((idx, w) in wordsIter.withIndex()) {
         if (skip) {
             skip = false
             continue
         }
-        if ((w == "project" || w == "project:") && wordsIter.size > wordsIter.indexOf(w) + 1) {
-            val next = wordsIter[wordsIter.indexOf(w) + 1]
+        if ((w.equals("project", true) || w.equals("project:", true)) && idx + 1 < wordsIter.size) {
+            val next = wordsIter[idx + 1]
             if (project.isEmpty()) project = normalizeProject(next)
             skip = true
             continue
@@ -125,6 +158,7 @@ private fun parseCommand(text: String): ParsedCommand? {
     }
     words.clear()
     words.addAll(keep)
+    if (project.isNotEmpty()) project = normalizeProject(project)
 
     val tags = mutableListOf<String>()
     val descWords = mutableListOf<String>()
@@ -135,7 +169,7 @@ private fun parseCommand(text: String): ParsedCommand? {
             else -> descWords += word
         }
     }
-    val description = descWords.joinToString(" ").trim()
+    val description = descWords.joinToString(" ").trim().trim('.', '!', '?', ',', ';', ':')
     if (description.isEmpty()) return null
     return ParsedCommand(description, tags, project)
 }
@@ -271,21 +305,48 @@ fun AirCavApp() {
         }
     }
 
-    fun submit(text: String) {
-        val del = deleteCmd.find(text.trim())
-        if (del != null) {
-            val num = del.groupValues[1].toIntOrNull()
-            val target = tasks.firstOrNull { it.id == num }
-            if (target == null) {
-                Toast.makeText(activity, "No task #$num", Toast.LENGTH_SHORT).show()
-                return
+    fun handleInput(text: String, isVoice: Boolean) {
+        when (val cmd = parseInput(text)) {
+            is Command.Add -> {
+                if (isVoice) {
+                    VoiceLog.append(activity) {
+                        put("description", cmd.description)
+                        put("tags", org.json.JSONArray(cmd.tags))
+                        if (cmd.project.isNotEmpty()) put("project", cmd.project)
+                    }
+                }
+                submitParsed(cmd.description, cmd.tags, cmd.project)
             }
-            pendingDelete = target
-            return
+            is Command.Act -> {
+                val target = tasks.firstOrNull { it.id == cmd.number }
+                if (isVoice) {
+                    VoiceLog.append(activity) {
+                        put("command", cmd.action)
+                        put("number", cmd.number)
+                        if (target != null) put("target", target.description)
+                    }
+                }
+                if (target == null) {
+                    Toast.makeText(activity, "No task #${cmd.number}", Toast.LENGTH_SHORT).show()
+                } else if (cmd.action == "delete") {
+                    pendingDelete = target
+                } else {
+                    Toast.makeText(activity, "Done: ${target.description}", Toast.LENGTH_SHORT).show()
+                    complete(target.uuid)
+                }
+            }
+            null -> {
+                if (isVoice) {
+                    VoiceLog.append(activity) {
+                        put("note", "could not be parsed into a task")
+                    }
+                }
+                Toast.makeText(activity, "Could not understand", Toast.LENGTH_SHORT).show()
+            }
         }
-        val parsed = parseCommand(text) ?: return
-        submitParsed(parsed.description, parsed.tags, parsed.project)
     }
+
+    fun submit(text: String) = handleInput(text, false)
 
     fun mistralVoice(apiKey: String, wav: java.io.File) {
         voiceProcessing = true
@@ -308,35 +369,7 @@ fun AirCavApp() {
                     VoiceLog.append(activity) {
                         put("transcript", text)
                     }
-                    val del = deleteCmd.find(text.trim())
-                    if (del != null) {
-                        val num = del.groupValues[1].toIntOrNull()
-                        val target = tasks.firstOrNull { it.id == num }
-                        VoiceLog.append(activity) {
-                            put("delete_command", num)
-                            if (target != null) put("target", target.description)
-                        }
-                        if (target == null) {
-                            Toast.makeText(activity, "No task #$num", Toast.LENGTH_SHORT).show()
-                        } else {
-                            pendingDelete = target
-                        }
-                        return@onSuccess
-                    }
-                    val parsed = parseCommand(text)
-                    if (parsed == null) {
-                        VoiceLog.append(activity) {
-                            put("note", "transcript could not be parsed into a task")
-                        }
-                        Toast.makeText(activity, "Could not understand", Toast.LENGTH_SHORT).show()
-                    } else {
-                        VoiceLog.append(activity) {
-                            put("description", parsed.description)
-                            put("tags", org.json.JSONArray(parsed.tags))
-                            if (parsed.project.isNotEmpty()) put("project", parsed.project)
-                        }
-                        submitParsed(parsed.description, parsed.tags, parsed.project)
-                    }
+                    handleInput(text, true)
                 }
             }
         }
