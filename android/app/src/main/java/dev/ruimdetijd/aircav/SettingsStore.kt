@@ -97,29 +97,46 @@ class SettingsStore(context: Context) {
         ).apply()
     }
 
+    // a client id must be a real, non-nil UUID (the nil UUID means "no client"
+    // and is rejected by the sync server with a 404)
+    private fun validUuid(value: String): Boolean = try {
+        java.util.UUID.fromString(value.trim()) != java.util.UUID(0, 0)
+    } catch (e: IllegalArgumentException) {
+        false
+    }
+
     fun load(): Settings {
         if (!prefs.contains("client_id")) {
-            val clientId = AirCavLib.newUuid()
             val secret = AirCavLib.newUuid().replace("-", "")
-            prefs.edit().putString("client_id", clientId).putString("sync_url", "").apply()
+            prefs.edit().putString("client_id", AirCavLib.newUuid()).putString("sync_url", "").apply()
             putSecret("encryption_secret", secret)
             putSecret("mistral_api_key", "")
         }
+        var clientId = prefs.getString("client_id", "") ?: ""
+        if (!validUuid(clientId)) {
+            clientId = AirCavLib.newUuid()
+            prefs.edit().putString("client_id", clientId).apply()
+        }
         return Settings(
             syncUrl = prefs.getString("sync_url", "") ?: "",
-            clientId = prefs.getString("client_id", "") ?: "",
+            clientId = clientId,
             encryptionSecret = getSecret("encryption_secret", ""),
             mistralApiKey = getSecret("mistral_api_key", ""),
         )
     }
 
     fun save(settings: Settings) {
+        val clientId =
+            if (validUuid(settings.clientId)) settings.clientId.trim() else AirCavLib.newUuid()
         prefs.edit()
             .putString("sync_url", settings.syncUrl.trim())
-            .putString("client_id", settings.clientId.trim())
+            .putString("client_id", clientId)
             .apply()
         putSecret("encryption_secret", settings.encryptionSecret)
         putSecret("mistral_api_key", settings.mistralApiKey.trim())
+        if (clientId != settings.clientId.trim()) {
+            prefs.edit().putString("invalid_client_id_replaced", "1").apply()
+        }
     }
 }
 
