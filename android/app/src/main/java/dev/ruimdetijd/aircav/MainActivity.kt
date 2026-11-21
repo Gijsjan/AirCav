@@ -3,6 +3,7 @@ package dev.ruimdetijd.aircav
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -130,6 +131,9 @@ fun AirCavApp() {
                 repo.list()
             }
             withContext(Dispatchers.Main) {
+                result.onFailure { e ->
+                    Log.e(TAG, "load failed", e)
+                }
                 result.onSuccess {
                     tasks = it.tasks
                     contexts = it.contexts
@@ -182,6 +186,7 @@ fun AirCavApp() {
                     Toast.makeText(activity, "Synced", Toast.LENGTH_SHORT).show()
                 }
                 result.onFailure { e ->
+                    Log.e(TAG, "sync failed", e)
                     Toast.makeText(activity, e.message ?: "sync failed", Toast.LENGTH_LONG).show()
                 }
                 isSyncing = false
@@ -225,6 +230,7 @@ fun AirCavApp() {
             withContext(Dispatchers.Main) {
                 voiceProcessing = false
                 result.onFailure { e ->
+                    Log.e(TAG, "voice failed", e)
                     Toast.makeText(activity, "voice failed: ${e.message}", Toast.LENGTH_LONG).show()
                 }
                 result.onSuccess { text ->
