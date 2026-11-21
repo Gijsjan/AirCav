@@ -93,4 +93,15 @@ class ParserTest {
         cmd as Command.Add
         assertEquals("35 delete", cmd.description)
     }
+
+    @Test
+    fun projectHierarchyMatch() {
+        assertTrue(matchesProject("home", "home"))
+        assertTrue(matchesProject("home.klussen", "home"))
+        assertTrue(matchesProject("Home.Klussen", "HOME"))
+        assertTrue(matchesProject("home.klussen.garage", "home"))
+        org.junit.Assert.assertFalse(matchesProject("homework", "home")) // no partial-word match
+        org.junit.Assert.assertFalse(matchesProject(null, "home"))
+        org.junit.Assert.assertFalse(matchesProject("nde", "home"))
+    }
 }

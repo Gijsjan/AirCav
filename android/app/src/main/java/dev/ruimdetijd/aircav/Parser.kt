@@ -46,6 +46,17 @@ fun parse(input: String): Command? {
     return parseInput(input)
 }
 
+/**
+ * Taskwarrior-style project hierarchy match: `home` matches `home`,
+ * `home.klussen`, `home.klussen.garage`... (case-insensitive).
+ */
+fun matchesProject(taskProject: String?, contextProject: String): Boolean {
+    if (taskProject == null) return false
+    val tp = taskProject.lowercase()
+    val cp = contextProject.lowercase()
+    return tp == cp || tp.startsWith("$cp.")
+}
+
 // normalize spoken project names: lowercase, strip trailing sentence punctuation
 private fun normalizeProject(value: String): String =
     value.trim().trim('.', ',', '!', '?', ';', ':').lowercase()

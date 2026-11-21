@@ -513,7 +513,7 @@ fun AirCavApp() {
                     fun matches(t: TaskItem): Boolean {
                         val chip = selectedChip ?: return true
                         return if (chip.project != null) {
-                            t.project?.equals(chip.project, ignoreCase = true) == true
+                            matchesProject(t.project, chip.project)
                         } else {
                             chip.name in t.tags
                         }
