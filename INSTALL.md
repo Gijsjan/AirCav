@@ -27,7 +27,7 @@ Point cargo-ndk at the NDK (find the path in Android Studio under
 `~/Android/Sdk/ndk/<version>`):
 
 ```console
-$ export ANDROID_NDK_HOME=~/Android/Sdk/ndk/28.2.13676358
+$ export ANDROID_NDK_HOME=~/Android/Sdk/ndk/27.0.12077973
 ```
 
 Then, from the repo root:
@@ -160,3 +160,37 @@ above, every container build generates a fresh key, and `adb install -r`
 fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. If you ever hit that:
 `adb uninstall dev.ruimdetijd.aircav`, then install again.
 | "voice failed" toast | Check the API key, Mistral quota, and network; the temp WAV is deleted after each attempt |
+
+## Release builds (recommended for daily use)
+
+Debug APKs are debuggable: anyone with ADB access to the phone can read the
+app's files (`run-as`) and attach a debugger. Build a signed release instead:
+
+```console
+$ keytool -genkey -v -keystore ~/aircav-release.jks -keyalg RSA \
+    -keysize 2048 -validity 10000 -alias aircav
+$ export AIRCAV_KEYSTORE=~/aircav-release.jks
+$ export AIRCAV_KEYSTORE_PASSWORD=... AIRCAV_KEY_ALIAS=aircav AIRCAV_KEY_PASSWORD=...
+$ RELEASE=1 ./update.sh          # out/app-release.apk (R8-minified, ~10x smaller dex)
+```
+
+The keystore lives outside the repo (never commit it). Keep it: all future
+release updates must be signed with the same key or Android refuses the
+upgrade. Release builds disable `run-as`; use the app's settings dialog
+"Export voice log" button instead.
+
+**Note before your first release install:** server-side, switch to
+`tailscale serve --bg --https=443 http://127.0.0.1:8080` and set the app's sync
+URL to `https://<machine>.<tailnet>.ts.net` — release builds no longer allow
+plain `http://` on purpose (see README, Server setup).
+
+## Parser unit tests
+
+```console
+$ podman run --rm -v "$PWD":/work:Z --entrypoint bash aircav-builder \
+    -c "cd /work/android && gradle --no-daemon test"
+```
+
+Covers the spoken/typed input grammar (plain adds, `task add ...`,
+`task <n> delete|done` with real Voxtral punctuation, project normalization,
+and the regression that verb-first text must stay a plain task).

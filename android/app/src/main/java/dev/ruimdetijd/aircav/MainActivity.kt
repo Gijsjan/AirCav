@@ -30,6 +30,13 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Settings
+import android.content.Intent
+import android.view.WindowManager
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -46,6 +53,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,91 +88,6 @@ class MainActivity : ComponentActivity() {
 
 private const val TAG = "AirCav"
 
-data class ParsedCommand(
-    val description: String,
-    val tags: List<String>,
-    val project: String = "",
-)
-
-sealed interface Command {
-    data class Add(val description: String, val tags: List<String>, val project: String) : Command
-    data class Act(val number: Int, val action: String) : Command
-}
-
-private val taskAdd = Regex("^(?:task|taak)\\s+add\\s+(.+)$", RegexOption.IGNORE_CASE)
-private val taskActNumFirst =
-    Regex("^(?:task|taak)\\s+(\\d+)[.,;:?]?\\s*(delete|done|complete|verwijder|verwijderen|remove)\\b", RegexOption.IGNORE_CASE)
-
-private fun actionOf(verb: String): String =
-    if (verb.equals("delete", true) || verb.equals("remove", true) ||
-        verb.equals("verwijder", true) || verb.equals("verwijderen", true)
-    ) "delete" else "done"
-
-// parse "task"-style CLI input; plain text becomes Add (with +tags and project:x)
-private fun parseInput(raw: String): Command? {
-    val text = raw.trim()
-    taskAdd.find(text)?.let { m ->
-        return parseCommand(m.groupValues[1])?.let { Command.Add(it.description, it.tags, it.project) }
-    }
-    taskActNumFirst.find(text)?.let { m ->
-        return Command.Act(m.groupValues[1].toInt(), actionOf(m.groupValues[2]))
-    }
-    return parseCommand(text)?.let { Command.Add(it.description, it.tags, it.project) }
-}
-// extract description/tags/project from plain text ("buy milk +home project:work")
-private fun parseCommand(text: String): ParsedCommand? {
-    val words = text.trim().split(Regex("\\s+")).toMutableList()
-    var project = ""
-
-    // "project:foo" as a single token
-    words.removeAll { word ->
-        val m = Regex("^project:(.+)$").find(word)
-        if (m != null) {
-            project = m.groupValues[1]
-            true
-        } else {
-            false
-        }
-    }
-
-    // spoken transcripts arrive capitalized with sentence punctuation
-    fun normalizeProject(value: String): String =
-        value.trim().trim('.', ',', '!', '?', ';', ':').lowercase()
-
-    // "project foo" as two tokens
-    val wordsIter = words.toList()
-    val keep = mutableListOf<String>()
-    var skip = false
-    for ((idx, w) in wordsIter.withIndex()) {
-        if (skip) {
-            skip = false
-            continue
-        }
-        if ((w.equals("project", true) || w.equals("project:", true)) && idx + 1 < wordsIter.size) {
-            val next = wordsIter[idx + 1]
-            if (project.isEmpty()) project = normalizeProject(next)
-            skip = true
-            continue
-        }
-        keep += w
-    }
-    words.clear()
-    words.addAll(keep)
-    if (project.isNotEmpty()) project = normalizeProject(project)
-
-    val tags = mutableListOf<String>()
-    val descWords = mutableListOf<String>()
-    for (word in words) {
-        when {
-            word.startsWith("+") && word.length > 1 -> tags += word.drop(1)
-            word.startsWith("@") && word.length > 1 -> tags += word.drop(1)
-            else -> descWords += word
-        }
-    }
-    val description = descWords.joinToString(" ").trim().trim('.', '!', '?', ',', ';', ':')
-    if (description.isEmpty()) return null
-    return ParsedCommand(description, tags, project)
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -224,22 +149,39 @@ fun AirCavApp() {
         }
     }
 
-    fun syncAfterChange() {
-        if (settingsStore.load().syncUrl.isBlank()) return
+    var syncJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+    fun doSync(manual: Boolean) {
         isSyncing = true
         scope.launch(Dispatchers.IO) {
-            val syncResult = runCatching {
+            val result = runCatching {
                 repo.ensureOpen()
                 repo.sync()
-                repo.list()
+                repo.list() // one list, reused for the UI update
             }
             withContext(Dispatchers.Main) {
-                syncResult.onSuccess {
+                isSyncing = false
+                result.onSuccess {
                     tasks = it.tasks
                     contexts = it.contexts
+                    if (manual) Toast.makeText(activity, "Synced", Toast.LENGTH_SHORT).show()
                 }
-                isSyncing = false
+                result.onFailure { e ->
+                    Log.e(TAG, "sync failed", e)
+                    if (manual) Toast.makeText(activity, e.message ?: "sync failed", Toast.LENGTH_LONG).show()
+                }
             }
+        }
+    }
+
+    // refresh the UI right away (local), debounce the network sync (2 s of quiet)
+    fun pushAfterChange() {
+        refresh()
+        if (settingsStore.load().syncUrl.isBlank()) return
+        syncJob?.cancel()
+        syncJob = scope.launch {
+            delay(2000)
+            doSync(manual = false)
         }
     }
 
@@ -253,26 +195,7 @@ fun AirCavApp() {
             showSettings = true
             return
         }
-        isSyncing = true
-        scope.launch(Dispatchers.IO) {
-            val result = runCatching {
-                repo.ensureOpen()
-                repo.sync()
-                repo.list()
-            }
-            withContext(Dispatchers.Main) {
-                result.onSuccess {
-                    tasks = it.tasks
-                    contexts = it.contexts
-                    Toast.makeText(activity, "Synced", Toast.LENGTH_SHORT).show()
-                }
-                result.onFailure { e ->
-                    Log.e(TAG, "sync failed", e)
-                    Toast.makeText(activity, e.message ?: "sync failed", Toast.LENGTH_LONG).show()
-                }
-                isSyncing = false
-            }
-        }
+        doSync(manual = true)
     }
 
     fun submitParsed(description: String, tags: List<String>, project: String) {
@@ -281,16 +204,17 @@ fun AirCavApp() {
             val result = runCatching {
                 repo.ensureOpen()
                 repo.add(description, tags, project)
-                repo.list()
+                "ok"
             }
             withContext(Dispatchers.Main) {
-                result.onSuccess {
-                    tasks = it.tasks
-                    contexts = it.contexts
-                }
                 if (result.isSuccess) inputText = ""
                 busy = false
-                if (result.isSuccess) syncAfterChange()
+                if (result.isSuccess) pushAfterChange() else {
+                    result.onFailure { e ->
+                        Log.e(TAG, "add failed", e)
+                        Toast.makeText(activity, e.message ?: "add failed", Toast.LENGTH_LONG).show()
+                    }
+                }
             }
         }
     }
@@ -301,9 +225,9 @@ fun AirCavApp() {
         scope.launch(Dispatchers.IO) {
             val result = runCatching {
                 val transcript = MistralApi.transcribe(apiKey, wav)
-                wav.delete()
                 transcript
             }
+            recorder.discard()
             withContext(Dispatchers.Main) {
                 voiceProcessing = false
                 result.onFailure { e ->
@@ -329,8 +253,7 @@ fun AirCavApp() {
                 repo.complete(uuid)
             }
             withContext(Dispatchers.Main) {
-                refresh()
-                syncAfterChange()
+                pushAfterChange()
             }
         }
     }
@@ -342,14 +265,13 @@ fun AirCavApp() {
                 repo.remove(uuid)
             }
             withContext(Dispatchers.Main) {
-                refresh()
-                syncAfterChange()
+                pushAfterChange()
             }
         }
     }
 
     fun handleInput(text: String, isVoice: Boolean) {
-        when (val cmd = parseInput(text)) {
+        when (val cmd = parse(text)) {
             is Command.Add -> {
                 if (isVoice) {
                     VoiceLog.append(activity) {
@@ -392,6 +314,13 @@ fun AirCavApp() {
     fun submit(text: String) = handleInput(text, false)
 
     LaunchedEffect(Unit) { refresh() }
+
+    // keep the list fresh: sync whenever the app (re)gains focus
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (settingsStore.load().syncUrl.isNotBlank()) {
+            doSync(manual = false)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -640,6 +569,19 @@ fun SettingsDialog(
     var apiKey by remember { mutableStateOf(settings.mistralApiKey) }
     var contextsText by remember { mutableStateOf(settings.contextsText) }
 
+    val window = (LocalContext.current as? ComponentActivity)?.window
+    DisposableEffect(window) {
+        window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+    }
+
+    var showSecret by remember { mutableStateOf(false) }
+    val secretVisual = if (showSecret) VisualTransformation.None else PasswordVisualTransformation()
+    val secretKeyboard = KeyboardOptions(
+        keyboardType = KeyboardType.Password,
+        autoCorrect = false,
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Sync settings") },
@@ -670,6 +612,13 @@ fun SettingsDialog(
                     onValueChange = { secret = it },
                     label = { Text("Encryption secret") },
                     singleLine = true,
+                    visualTransformation = secretVisual,
+                    keyboardOptions = secretKeyboard,
+                    trailingIcon = {
+                        TextButton(onClick = { showSecret = !showSecret }) {
+                            Text(if (showSecret) "hide" else "show")
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
                 OutlinedTextField(
@@ -677,6 +626,8 @@ fun SettingsDialog(
                     onValueChange = { apiKey = it },
                     label = { Text("Mistral API key (for voice input)") },
                     singleLine = true,
+                    visualTransformation = secretVisual,
+                    keyboardOptions = secretKeyboard,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
                 OutlinedTextField(
@@ -695,6 +646,21 @@ fun SettingsDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
+            val ctx = LocalContext.current
+            TextButton(
+                onClick = {
+                    val text = runCatching { VoiceLog.file(ctx).readText() }.getOrDefault("(no log yet)")
+                    ctx.startActivity(
+                        Intent.createChooser(
+                            Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, text)
+                            },
+                            "Voice log",
+                        ),
+                    )
+                },
+            ) { Text("Export voice log") }
         },
     )
 }

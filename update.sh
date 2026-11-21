@@ -29,11 +29,26 @@ fi
 
 echo "==> building APK (container)"
 mkdir -p out .android-debug
-podman run --rm \
-    -v "$PWD":/work:Z \
-    -v "$PWD/.android-debug":/root/.android:Z \
-    -e CARGO_TARGET_DIR=/work/rust/target \
-    "$TAG"
+if [ -n "${RELEASE:-}" ]; then
+    [ -n "${AIRCAV_KEYSTORE:-}" ] || {
+        echo "ERROR: RELEASE=1 needs AIRCAV_KEYSTORE (+ _PASSWORD/_KEY_ALIAS/_KEY_PASSWORD)" >&2
+        exit 1
+    }
+    podman run --rm \
+        -v "$PWD":/work:Z \
+        -v "$PWD/.android-debug":/root/.android:Z \
+        -e CARGO_TARGET_DIR=/work/rust/target \
+        -e AIRCAV_KEYSTORE -e AIRCAV_KEYSTORE_PASSWORD -e AIRCAV_KEY_ALIAS -e AIRCAV_KEY_PASSWORD \
+        --entrypoint bash "$TAG" -c "cd /work/android && gradle --no-daemon assembleRelease \
+            && cp app/build/outputs/apk/release/app-release.apk /work/out/app-release.apk"
+    APK=out/app-release.apk
+else
+    podman run --rm \
+        -v "$PWD":/work:Z \
+        -v "$PWD/.android-debug":/root/.android:Z \
+        -e CARGO_TARGET_DIR=/work/rust/target \
+        "$TAG"
+fi
 [ -f "$APK" ] || { echo "ERROR: build produced no APK ($APK)" >&2; exit 1; }
 
 echo "==> locating adb (extracted from the image once)"

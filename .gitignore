@@ -10,3 +10,10 @@ android/app/src/main/jniLibs/
 .idea/
 *.iml
 .DS_Store
+# local build artifacts
+.adb/
+.android-debug/
+.android-release/
+/adb
+out/
+local.properties

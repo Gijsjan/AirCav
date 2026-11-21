@@ -115,6 +115,12 @@ class VoiceRecorder(context: Context) : Closeable {
         b[off + 1] = ((v shr 8) and 0xFF).toByte()
     }
 
+    /** Best-effort delete of any raw PCM/WAV left in cacheDir. */
+    fun discard() {
+        tempFile.delete()
+        wavFile.delete()
+    }
+
     override fun close() {
         record?.let {
             it.stop()

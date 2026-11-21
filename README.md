@@ -26,16 +26,28 @@ It is a small, focused alternative to the "Taskwarrior Flutter" app on Google Pl
 
 ## Server setup (one time)
 
-On your desktop/home server:
+On your desktop/home server — hardened:
 
 ```
-# install the sync server, e.g. via cargo or your distro, then:
-taskchampion-sync-server --listen 0.0.0.0:8080 --data-dir ~/syncdata
+# bind only to localhost; tailscale serve provides TLS + tailnet-only reachability
+taskchampion-sync-server --listen 127.0.0.1:8080 --data-dir ~/syncdata \
+    --allow-client-id <your-client-id-uuid>
+
+# publish it on your tailnet with a valid HTTPS cert:
+tailscale serve --bg --https=443 http://127.0.0.1:8080
 ```
 
-Make sure Tailscale is up on both the server and the phone. From the phone's browser, `http://<server-tailscale-ip>:8080` can be reached. That same address goes into the app settings.
+Use `https://<machine>.<tailnet>.ts.net` as the sync URL in the app (check
+`tailscale status` / `tailscale cert` for the exact name). Do NOT use the raw
+`http://100.x.y.z` form: when Tailscale is off, the 100.64.0.0/10 range belongs
+to carrier-grade NAT, so requests could reach a random carrier host (task data
+stays encrypted, but your client ID would leak).
 
-Note: the sync protocol encrypts all task data with your own `encryption_secret` before it leaves this app, so plain HTTP over Tailscale is still end-to-end encrypted from the server's point of view.
+Server flags worth knowing:
+ * `--allow-client-id <uuid>` (repeatable): only these client IDs may sync —
+   nobody else can create a replica or push junk versions on your server
+ * `--no-create-clients`: refuse unknown clients instead of auto-registering
+ * binding to `127.0.0.1` keeps the server off your LAN entirely
 
 ## Build the native library (Rust)
 
@@ -156,8 +168,9 @@ if missing. The key is stored AES/GCM-encrypted in the Android Keystore.
 
 Your task list never leaves your devices except as end-to-end-encrypted
 blobs to your own sync server. Voice audio goes to Mistral's transcription
-endpoint only, is never stored in the app, and the temp WAV is deleted right
-after transcription.
+endpoint only; the raw PCM and the WAV are deleted from the app cache right
+after every attempt (success or failure), and the voice log keeps only the
+last 500 entries.
 
 ## Project layout
 

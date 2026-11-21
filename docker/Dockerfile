@@ -35,9 +35,9 @@ RUN curl -fsSL https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /
     && rm /tmp/gradle.zip
 
 # Rust + cargo-ndk
-RUN curl -fsSL https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable --profile minimal \
+RUN curl -fsSL https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.100.0 --profile minimal \
     && rustup target add aarch64-linux-android armv7-linux-androideabi \
-    && cargo install --locked cargo-ndk
+    && cargo install --locked --version 4.1.2 cargo-ndk
 
 WORKDIR /work
 CMD ["/work/docker/build.sh"]

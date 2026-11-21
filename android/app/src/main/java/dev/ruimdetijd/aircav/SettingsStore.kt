@@ -1,6 +1,7 @@
 package dev.ruimdetijd.aircav
 
 import android.content.Context
+import android.util.Log
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -37,7 +38,13 @@ class SettingsStore(context: Context) {
 
     companion object {
         private const val KEY_ALIAS = "aircav_settings_key"
+
+        @Volatile
+        var keystoreError: String? = null
+            private set
     }
+
+    private var cache: Settings? = null
 
     private fun settingsKey(): SecretKey? = try {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
@@ -104,10 +111,14 @@ class SettingsStore(context: Context) {
 
     private fun putSecret(name: String, value: String) {
         val enc = encrypt(value)
-        prefs.edit().putString(
-            name,
-            if (enc != null) "enc:$enc" else value,
-        ).apply()
+        if (enc == null) {
+            keystoreError = "Android Keystore unavailable: secret NOT stored securely"
+            Log.e("AirCavSettings", keystoreError)
+            prefs.edit().putString(name, "").apply() // never silent plaintext
+            return
+        }
+        keystoreError = null
+        prefs.edit().putString(name, "enc:$enc").apply()
     }
 
     // a client id must be a real, non-nil UUID (the nil UUID means "no client"
@@ -118,7 +129,15 @@ class SettingsStore(context: Context) {
         false
     }
 
+    @Synchronized
     fun load(): Settings {
+        cache?.let { return it }
+        val loaded = loadFresh()
+        cache = loaded
+        return loaded
+    }
+
+    private fun loadFresh(): Settings {
         if (!prefs.contains("client_id")) {
             val secret = AirCavLib.newUuid().replace("-", "")
             prefs.edit().putString("client_id", AirCavLib.newUuid()).putString("sync_url", "").apply()
@@ -146,7 +165,13 @@ class SettingsStore(context: Context) {
         prefs.edit().putString("selected_context", name ?: "").apply()
     }
 
+    @Synchronized
     fun save(settings: Settings) {
+        saveFresh(settings)
+        cache = settings
+    }
+
+    private fun saveFresh(settings: Settings) {
         val clientId =
             if (validUuid(settings.clientId)) settings.clientId.trim() else AirCavLib.newUuid()
         prefs.edit()

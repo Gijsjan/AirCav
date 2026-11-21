@@ -15,7 +15,14 @@ object VoiceLog {
                 build()
             }
             synchronized(this) {
-                File(context.filesDir, FILE).appendText(entry.toString() + "\n")
+                val f = File(context.filesDir, FILE)
+                f.appendText(entry.toString() + "\n")
+                // cap: keep the last 500 entries (plain-text transcripts,
+                // so it must not grow unbounded)
+                val lines = f.readLines()
+                if (lines.size > 500) {
+                    f.writeText(lines.takeLast(500).joinToString("\n", postfix = "\n"))
+                }
             }
         }
     }

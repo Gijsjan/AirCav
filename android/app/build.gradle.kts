@@ -17,7 +17,25 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            // Sign with your own release keystore (kept OUTSIDE the repo), e.g.:
+            //   keytool -genkey -v -keystore ~/aircav-release.jks -keyalg RSA \
+            //     -keysize 2048 -validity 10000 -alias aircav
+            // then export AIRCAV_KEYSTORE=~/aircav-release.jks
+            //      AIRCAV_KEYSTORE_PASSWORD / AIRCAV_KEY_ALIAS / AIRCAV_KEY_PASSWORD
+            if (System.getenv("AIRCAV_KEYSTORE") != null) {
+                signingConfig = signingConfigs.create("release") {
+                    storeFile = file(System.getenv("AIRCAV_KEYSTORE"))
+                    storePassword = System.getenv("AIRCAV_KEYSTORE_PASSWORD")
+                    keyAlias = System.getenv("AIRCAV_KEY_ALIAS")
+                    keyPassword = System.getenv("AIRCAV_KEY_PASSWORD")
+                }
+            }
         }
     }
 
@@ -49,5 +67,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.2")
+    testImplementation("junit:junit:4.13.2")
     implementation("androidx.core:core-ktx:1.13.1")
 }
