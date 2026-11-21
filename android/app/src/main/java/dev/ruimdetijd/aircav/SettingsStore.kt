@@ -166,6 +166,7 @@ data class TaskItem(
     val description: String,
     val tags: List<String>,
     val project: String?,
+    val entry: String?,
 )
 
 data class TaskListResult(
@@ -186,6 +187,7 @@ object TaskParser {
                 description = t.getString("description"),
                 tags = (0 until tagsArr.length()).map { j -> tagsArr.getString(j) },
                 project = if (t.isNull("project")) null else t.optString("project", null),
+                entry = if (t.isNull("entry")) null else t.optString("entry", null),
             )
         }
         val contextsArr = obj.getJSONArray("contexts")

@@ -36,8 +36,8 @@ class TaskRepository(
     fun list(): TaskListResult = TaskParser.parse(AirCavLib.listTasks(handle))
 
     @Synchronized
-    fun add(description: String, tags: List<String>) {
-        AirCavLib.addTask(handle, description, JSONArray(tags).toString())
+    fun add(description: String, tags: List<String>, project: String) {
+        AirCavLib.addTask(handle, description, JSONArray(tags).toString(), project)
     }
 
     @Synchronized

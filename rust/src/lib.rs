@@ -19,6 +19,7 @@ struct TaskInfo {
     description: String,
     tags: Vec<String>,
     project: Option<String>,
+    entry: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -142,15 +143,15 @@ pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_listTasks(
                 .collect::<Vec<String>>();
             let uuid = t.get_uuid().to_string();
             let description = t.get_description().to_string();
-            let project = t
-                .into_task_data()
-                .get("project")
-                .map(|p| p.to_string());
+            let data = t.into_task_data();
+            let project = data.get("project").map(|p| p.to_string());
+            let entry = data.get("entry").map(|e| e.to_string());
             tasks.push(TaskInfo {
                 uuid,
                 description,
                 tags,
                 project,
+                entry,
             });
         }
         let mut contexts = tasks
@@ -181,6 +182,7 @@ pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_addTask(
     ptr: jlong,
     description: JString,
     tags_json: JString,
+    project: JString,
 ) {
     let Some(mut h) = lock(&mut env, ptr) else {
         return;
@@ -193,6 +195,8 @@ pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_addTask(
         if description.trim().is_empty() {
             return Err("empty description".to_string());
         }
+        let project_raw = env_str(&mut env, project)?;
+        let project_name = project_raw.trim().to_string();
         let mut ops = Operations::new();
         ops.push(Operation::UndoPoint);
         let uuid = Uuid::new_v4();
@@ -209,6 +213,10 @@ pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_addTask(
         for tag in tags {
             let tag = Tag::from_str(&tag).map_err(|_| format!("invalid tag: {tag}"))?;
             t.add_tag(&tag, &mut ops).map_err(err_string)?;
+        }
+        if !project_name.is_empty() {
+            let mut data = t.into_task_data();
+            data.update("project", Some(project_name.clone()), &mut ops);
         }
         h.replica.commit_operations(ops).map_err(err_string)?;
         Ok(())

@@ -78,21 +78,58 @@ class MainActivity : ComponentActivity() {
 
 private const val TAG = "AirCav"
 
-data class ParsedCommand(val description: String, val tags: List<String>)
+data class ParsedCommand(
+    val description: String,
+    val tags: List<String>,
+    val project: String = "",
+)
 
 private fun parseCommand(text: String): ParsedCommand? {
+    val words = text.trim().split(Regex("\\s+")).toMutableList()
+    var project = ""
+
+    // "project:foo" as a single token
+    words.removeAll { word ->
+        val m = Regex("^project:(.+)$").find(word)
+        if (m != null) {
+            project = m.groupValues[1]
+            true
+        } else {
+            false
+        }
+    }
+
+    // "project foo" as two tokens
+    val wordsIter = words.toList()
+    val keep = mutableListOf<String>()
+    var skip = false
+    for (w in wordsIter) {
+        if (skip) {
+            skip = false
+            continue
+        }
+        if ((w == "project" || w == "project:") && wordsIter.size > wordsIter.indexOf(w) + 1) {
+            project = wordsIter[wordsIter.indexOf(w) + 1]
+            skip = true
+            continue
+        }
+        keep += w
+    }
+    words.clear()
+    words.addAll(keep)
+
     val tags = mutableListOf<String>()
-    val words = mutableListOf<String>()
-    for (word in text.trim().split(Regex("\\s+"))) {
+    val descWords = mutableListOf<String>()
+    for (word in words) {
         when {
             word.startsWith("+") && word.length > 1 -> tags += word.drop(1)
             word.startsWith("@") && word.length > 1 -> tags += word.drop(1)
-            else -> words += word
+            else -> descWords += word
         }
     }
-    val description = words.joinToString(" ").trim()
+    val description = descWords.joinToString(" ").trim()
     if (description.isEmpty()) return null
-    return ParsedCommand(description, tags)
+    return ParsedCommand(description, tags, project)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -205,12 +242,12 @@ fun AirCavApp() {
         }
     }
 
-    fun submitParsed(description: String, tags: List<String>) {
+    fun submitParsed(description: String, tags: List<String>, project: String) {
         busy = true
         scope.launch(Dispatchers.IO) {
             val result = runCatching {
                 repo.ensureOpen()
-                repo.add(description, tags)
+                repo.add(description, tags, project)
                 repo.list()
             }
             withContext(Dispatchers.Main) {
@@ -227,7 +264,7 @@ fun AirCavApp() {
 
     fun submit(text: String) {
         val parsed = parseCommand(text) ?: return
-        submitParsed(parsed.description, parsed.tags)
+        submitParsed(parsed.description, parsed.tags, parsed.project)
     }
 
     fun mistralVoice(apiKey: String, wav: java.io.File) {
@@ -242,14 +279,28 @@ fun AirCavApp() {
                 voiceProcessing = false
                 result.onFailure { e ->
                     Log.e(TAG, "voice failed", e)
+                    VoiceLog.append(activity) {
+                        put("error", e.message ?: "unknown error")
+                    }
                     Toast.makeText(activity, "voice failed: ${e.message}", Toast.LENGTH_LONG).show()
                 }
                 result.onSuccess { text ->
+                    VoiceLog.append(activity) {
+                        put("transcript", text)
+                    }
                     val parsed = parseCommand(text)
                     if (parsed == null) {
+                        VoiceLog.append(activity) {
+                            put("note", "transcript could not be parsed into a task")
+                        }
                         Toast.makeText(activity, "Could not understand", Toast.LENGTH_SHORT).show()
                     } else {
-                        submitParsed(parsed.description, parsed.tags)
+                        VoiceLog.append(activity) {
+                            put("description", parsed.description)
+                            put("tags", org.json.JSONArray(parsed.tags))
+                            if (parsed.project.isNotEmpty()) put("project", parsed.project)
+                        }
+                        submitParsed(parsed.description, parsed.tags, parsed.project)
                     }
                 }
             }
@@ -361,7 +412,9 @@ fun AirCavApp() {
                             chip.name in t.tags
                         }
                     }
-                    val visible = tasks.filter { matches(it) }
+                    val visible = tasks
+                        .filter { matches(it) }
+                        .sortedByDescending { it.entry ?: "" }
                     if (visible.isEmpty()) {
                         Text(
                             "No tasks yet.\nType below or tap the mic to add one.",

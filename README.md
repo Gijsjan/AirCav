@@ -75,7 +75,8 @@ If your desktop Taskwarrior also syncs to this server with the same client ID an
 
 * Type a line like `buy milk +home` — words starting with `+` or `@` become tags/contexts, the rest becomes the description.
 * Tap the mic, speak the task, tap again — recorded audio is transcribed by
-  Voxtral and turned into a task (speak "+home" for a tag).
+  Voxtral and turned into a task. Speak "+home" for a tag, and "project nde"
+  or "project:nde" to set the project directly (great with the context chips).
 * The horizontal filter chips list all tags/contexts present in your tasks; tap one to filter.
 * Checkbox completes a task; trash icon deletes (status Deleted) it.
 * The cloud button forces a manual sync; every change is also synced automatically if a server URL is configured.
@@ -124,6 +125,20 @@ home=home
 Each defined context becomes a filter chip matching tasks with that project.
 If no contexts are defined, the chips fall back to the `+tags` on your pending
 tasks (and typed input `+tag` sets a tag; Taskwarrior shows tags as `+name`).
+
+## Voice log
+
+Every voice attempt is appended to `files/voice-log.jsonl` inside the app's
+private storage: one JSON line with a timestamp, the raw transcript, the
+parsed task (description, tags, project), or the error if it failed. Inspect
+it from your computer:
+
+```console
+$ ./adb shell run-as dev.ruimdetijd.aircav cat files/voice-log.jsonl
+$ ./adb shell run-as dev.ruimdetijd.aircav sh -c 'echo > files/voice-log.jsonl'   # clear
+```
+
+(The app is debug-signed, so `adb shell run-as` works.)
 
 ## Voice input & privacy
 
