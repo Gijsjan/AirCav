@@ -95,7 +95,8 @@ class VoiceRecorder(context: Context) : Closeable {
             writeInt(header, 28, sampleRate * 2)
             writeShort(header, 32, 2)
             writeShort(header, 34, 16)
-            writeInt(header, 36, data.size)
+            writeInt(header, 36, 0x61746164) // "data"
+            writeInt(header, 40, data.size)
             f.write(header)
             f.write(data)
         }
