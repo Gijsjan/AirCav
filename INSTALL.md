@@ -123,3 +123,33 @@ If the Rust library changed: rerun step 1 first.
 | App opens but list stays empty | No tasks yet; type `buy milk +errands` below to test |
 | "sync failed" toast | Check server URL, that `taskchampion-sync-server` is running, and that you can open the URL in the phone's web browser while Tailscale is up |
 | No Android speech recognition without Mistral key | Some phones lack a system recognizer — set a Mistral API key to use Voxtral instead |
+
+## Option C — build inside a container (no host installs)
+
+If you don't want the JDK, Android SDK, NDK, and Rust toolchain on your host at
+all, build in Podman/Docker. You only need `podman` (or `docker`) itself.
+
+```console
+$ git clone https://github.com/Gijsjan/AirCav.git && cd AirCav
+$ podman build -t aircav-builder -f docker/Dockerfile .    # ~10 min, one time
+$ mkdir -p out
+$ podman run --rm -v "$PWD":/work -e CARGO_TARGET_DIR=/work/rust/target aircav-builder
+$ ls out/app-debug.apk                                      # your APK
+```
+
+The build cache persists in `rust/target` on your checkout, so subsequent runs
+are much faster.
+
+**Installing on the phone without host adb** — enable *Wireless debugging* in
+the phone's Developer options (same screen as USB debugging), then:
+
+```console
+$ podman run --rm -it -v "$PWD":/work --network host aircav-builder adb connect <phone-ip>:<port>
+$ podman run --rm -v "$PWD":/work --network host aircav-builder adb install -r /work/out/app-debug.apk
+```
+
+`adb` is already inside the image (`platform-tools`). With rootless Podman,
+`--network host` lets the container reach your LAN; with Docker just drop it
+and use the phone's IP directly. (Classic `adb install` over USB from the
+container is also possible with `--device /dev/bus/usb` but device passthrough
+is fiddly — wireless is the easy path.)
