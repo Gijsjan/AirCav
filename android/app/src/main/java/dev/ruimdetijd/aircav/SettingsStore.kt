@@ -139,6 +139,13 @@ class SettingsStore(context: Context) {
         )
     }
 
+    fun getSelectedContext(): String? =
+        prefs.getString("selected_context", null)?.takeIf { it.isNotEmpty() }
+
+    fun setSelectedContext(name: String?) {
+        prefs.edit().putString("selected_context", name ?: "").apply()
+    }
+
     fun save(settings: Settings) {
         val clientId =
             if (validUuid(settings.clientId)) settings.clientId.trim() else AirCavLib.newUuid()

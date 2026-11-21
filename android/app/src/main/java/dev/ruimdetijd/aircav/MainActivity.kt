@@ -108,7 +108,14 @@ fun AirCavApp() {
     var tasks by remember { mutableStateOf<List<TaskItem>>(emptyList()) }
     var contexts by remember { mutableStateOf<List<String>>(emptyList()) }
     var contextDefs by remember { mutableStateOf<List<ContextDef>>(emptyList()) }
-    var selectedContext by remember { mutableStateOf<String?>(null) }
+    var selectedContext by remember {
+        mutableStateOf<String?>(settingsStore.getSelectedContext())
+    }
+
+    fun selectContext(name: String?) {
+        selectedContext = name
+        settingsStore.setSelectedContext(name)
+    }
     var inputText by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(true) }
     var isSyncing by remember { mutableStateOf(false) }
@@ -317,7 +324,7 @@ fun AirCavApp() {
                 ) {
                     FilterChip(
                         selected = selectedContext == null,
-                        onClick = { selectedContext = null },
+                        onClick = { selectContext(null) },
                         label = { Text("all") },
                         modifier = Modifier.padding(4.dp),
                     )
@@ -325,7 +332,9 @@ fun AirCavApp() {
                         FilterChip(
                             selected = selectedContext == chip.name,
                             onClick = {
-                                selectedContext = if (selectedContext == chip.name) null else chip.name
+                                selectContext(
+                                    if (selectedContext == chip.name) null else chip.name,
+                                )
                             },
                             label = { Text(chip.name) },
                             modifier = Modifier.padding(4.dp),
