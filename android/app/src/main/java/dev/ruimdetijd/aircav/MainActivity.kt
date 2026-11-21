@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class ParsedCommand(val description: String, val tags: List<String>)
+data class ParsedCommand(val description: String, val tags: List<String>)
 
 private fun parseCommand(text: String): ParsedCommand? {
     val tags = mutableListOf<String>()
@@ -196,11 +196,6 @@ fun AirCavApp() {
         }
     }
 
-    fun submit(text: String) {
-        val parsed = parseCommand(text) ?: return
-        submitParsed(parsed.description, parsed.tags)
-    }
-
     fun submitParsed(description: String, tags: List<String>) {
         busy = true
         scope.launch(Dispatchers.IO) {
@@ -219,6 +214,11 @@ fun AirCavApp() {
                 if (result.isSuccess) syncAfterChange()
             }
         }
+    }
+
+    fun submit(text: String) {
+        val parsed = parseCommand(text) ?: return
+        submitParsed(parsed.description, parsed.tags)
     }
 
     fun mistralVoice(apiKey: String, wav: java.io.File) {
@@ -476,6 +476,7 @@ fun AirCavApp() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsDialog(
     settings: Settings,
@@ -522,7 +523,7 @@ fun SettingsDialog(
                 OutlinedTextField(
                     value = apiKey,
                     onValueChange = { apiKey = it },
-                    label = { Text("Mistral API key (optional, for voice) },
+                    label = { Text("Mistral API key (optional, for voice)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
