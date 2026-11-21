@@ -92,10 +92,6 @@ sealed interface Command {
 private val taskAdd = Regex("^(?:task|taak)\\s+add\\s+(.+)$", RegexOption.IGNORE_CASE)
 private val taskActNumFirst =
     Regex("^(?:task|taak)\\s+(\\d+)\\s+(delete|done|complete|verwijder|verwijderen|remove)\\b", RegexOption.IGNORE_CASE)
-private val taskActVerbFirst =
-    Regex("^(?:task|taak)?\\s*(delete|done|complete|verwijder|verwijderen|remove)\\s+(\\d+)\\b", RegexOption.IGNORE_CASE)
-// common mishearing of the English "delete" in Dutch speech: "de lead 34"
-private val deleteHomophone = Regex("^de\\s+(lead|lied|liet|lide)\\s+(\\d+)\\b", RegexOption.IGNORE_CASE)
 
 private fun actionOf(verb: String): String =
     if (verb.equals("delete", true) || verb.equals("remove", true) ||
@@ -110,12 +106,6 @@ private fun parseInput(raw: String): Command? {
     }
     taskActNumFirst.find(text)?.let { m ->
         return Command.Act(m.groupValues[1].toInt(), actionOf(m.groupValues[2]))
-    }
-    taskActVerbFirst.find(text)?.let { m ->
-        return Command.Act(m.groupValues[2].toInt(), actionOf(m.groupValues[1]))
-    }
-    deleteHomophone.find(text)?.let { m ->
-        return Command.Act(m.groupValues[2].toInt(), "delete")
     }
     return parseCommand(text)
 }

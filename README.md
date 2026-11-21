@@ -77,8 +77,8 @@ If your desktop Taskwarrior also syncs to this server with the same client ID an
 * Tap the mic, speak, tap again — transcribed by Voxtral and applied as a
   taskwarrior-style command:
   - `task add buy milk` — add (or plain text without the `task` prefix)
-  - `task 23 delete` / `task 23 done` — operate on a task by number first
-  - `delete 23` / `verwijder 23` — verb-first also works
+  - `task 23 delete` / `task 23 done` — operate on a task by number
+    (commands need the `task` prefix; unprefixed text is always an add)
   Say `project nde` in the task text to set the project (context chips).
 * The horizontal filter chips list all tags/contexts present in your tasks; tap one to filter.
 * Checkbox completes a task; trash icon deletes (status Deleted) it.
