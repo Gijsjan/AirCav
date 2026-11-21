@@ -76,4 +76,21 @@ class ParserTest {
         assertNull(parse("..."))
         assertNull(parse(""))
     }
+
+    @Test
+    fun atSignTagAlsoWorks() {
+        val cmd = parse("fix the sink @home")
+        cmd as Command.Add
+        assertEquals(listOf("home"), cmd.tags)
+        assertEquals("fix the sink", cmd.description)
+    }
+
+    @Test
+    fun unprefixedNumberVerbIsAnAdd() {
+        // "35 delete" without the task prefix must stay a task, never a command
+        val cmd = parse("35 delete")
+        assertTrue(cmd is Command.Add)
+        cmd as Command.Add
+        assertEquals("35 delete", cmd.description)
+    }
 }

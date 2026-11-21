@@ -26,6 +26,15 @@ if ! podman image exists "$TAG"; then
     echo "==> building container image (first time, ~10 min)"
     podman build -t "$TAG" -f docker/Dockerfile .
 fi
+# rebuild when the Dockerfile changed after the image was created
+IMG_CREATED=$(podman image inspect "$TAG" --format '{{.Created}}' 2>/dev/null || echo 0)
+[ "$IMG_CREATED" != "0" ] || { echo "ERROR: no image $TAG" >&2; exit 1; }
+IMG_EPOCH=$(date -d "$IMG_CREATED" +%s 2>/dev/null || stat -c %Y "$IMG_CREATED" 2>/dev/null || echo 0)
+DF_EPOCH=$(stat -c %Y docker/Dockerfile)
+if [ "$DF_EPOCH" -gt "$IMG_EPOCH" ]; then
+    echo "==> Dockerfile changed; rebuilding container image (~10 min)"
+    podman build -t "$TAG" -f docker/Dockerfile .
+fi
 
 echo "==> building APK (container)"
 mkdir -p out .android-debug

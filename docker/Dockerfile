@@ -26,12 +26,12 @@ RUN curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-1
     && mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest \
     && rm /tmp/clt.zip \
     && yes | sdkmanager --licenses >/dev/null \
-    && sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;${ANDROID_NDK_VERSION}" >/dev/null
+    && sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;${ANDROID_NDK_VERSION}" >/dev/null
 
 # Gradle
-RUN curl -fsSL https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /tmp/gradle.zip \
+RUN curl -fsSL https://services.gradle.org/distributions/gradle-8.13-bin.zip -o /tmp/gradle.zip \
     && unzip -q /tmp/gradle.zip -d /opt \
-    && mv /opt/gradle-8.7 /opt/gradle \
+    && mv /opt/gradle-8.13 /opt/gradle \
     && rm /tmp/gradle.zip
 
 # Rust + cargo-ndk
