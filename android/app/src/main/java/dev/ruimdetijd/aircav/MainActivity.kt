@@ -76,6 +76,8 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private const val TAG = "AirCav"
+
 data class ParsedCommand(val description: String, val tags: List<String>)
 
 private fun parseCommand(text: String): ParsedCommand? {
