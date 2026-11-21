@@ -74,8 +74,8 @@ If your desktop Taskwarrior also syncs to this server with the same client ID an
 ## Usage
 
 * Type a line like `buy milk +home` — words starting with `+` or `@` become tags/contexts, the rest becomes the description.
-* Tap the mic icon and speak a task — on-device recognition, never uploaded
-  (speak tags like "+home" the same way as typing).
+* Tap the mic, speak the task, tap again — recorded audio is transcribed by
+  Voxtral and turned into a task (speak "+home" for a tag).
 * The horizontal filter chips list all tags/contexts present in your tasks; tap one to filter.
 * Checkbox completes a task; trash icon deletes (status Deleted) it.
 * The cloud button forces a manual sync; every change is also synced automatically if a server URL is configured.
@@ -111,17 +111,19 @@ Google account is required, and you can point the emulator's sync URL at
 
 ## Voice input & privacy
 
-Voice input uses the phone's **on-device speech recognition only**
-(`EXTRA_PREFER_OFFLINE`). No Mistral, no LLM, no cloud speech service, and no
-fallback: your voice never leaves the phone. Speech becomes text with the same
-tag parsing as typed input (`+tag` spoken as "plus tag" works too).
+Voice input uses **Mistral only**: the app records audio in its own process
+(max 60 s), sends the WAV file to the Mistral API (Voxtral transcription), and
+the transcript is structured into description + tags **locally** — no LLM, no
+system speech service (which on most phones means Google). If your phone's
+voice entry would otherwise leak, this replaces it entirely.
 
-If the device has no offline speech model installed, tapping the mic shows a
-message instead of sending audio anywhere. (Most phones can download the
-offline model under Settings → System → Languages & input → Speech services.)
+Set your Mistral API key in the app's settings; the mic button prompts for it
+if missing. The key is stored AES/GCM-encrypted in the Android Keystore.
 
 Your task list never leaves your devices except as end-to-end-encrypted
-blobs to your own sync server.
+blobs to your own sync server. Voice audio goes to Mistral's transcription
+endpoint only, is never stored in the app, and the temp WAV is deleted right
+after transcription.
 
 ## Project layout
 

@@ -98,6 +98,8 @@ To reinstall after building a new version, rerun the same `adb install -r` comma
    * **Sync server URL** — e.g. `http://100.x.y.z:8080` (your server's Tailscale IP/port)
    * **Client ID / Encryption secret** — prefilled with generated values;
      use the same values on your desktop Taskwarrior to share one task list
+   * **Mistral API key** — from [console.mistral.ai](https://console.mistral.ai);
+     required for the voice-input button (Voxtral)
 3. Tap **Save & sync** — a "Synced" toast confirms it works.
 
 ## 6. Update / rebuild later
@@ -118,7 +120,7 @@ If the Rust library changed: rerun step 1 first.
 | Gradle sync fails: "failed to find NDK" | Open the project once in Android Studio, let it install SDK 34 + NDK |
 | App opens but list stays empty | No tasks yet; type `buy milk +errands` below to test |
 | "sync failed" toast | Check server URL, that `taskchampion-sync-server` is running, and that you can open the URL in the phone's web browser while Tailscale is up |
-| Mic says no speech recognizer / recognition fails | Check the phone's offline speech model: Settings → System → Languages & input → Speech services → download offline model |
+| Mic says 'Set a Mistral API key' | Add your key in the app settings (from console.mistral.ai) |
 
 ## Option C — build inside a container (no host installs)
 
@@ -157,3 +159,4 @@ image-internal `$HOME/.android` — without the `.android-debug` volume mount
 above, every container build generates a fresh key, and `adb install -r`
 fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. If you ever hit that:
 `adb uninstall dev.ruimdetijd.aircav`, then install again.
+| "voice failed" toast | Check the API key, Mistral quota, and network; the temp WAV is deleted after each attempt |

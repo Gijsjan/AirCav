@@ -1,11 +1,8 @@
 package dev.ruimdetijd.aircav
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,6 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -112,24 +110,9 @@ fun AirCavApp() {
     var isSyncing by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var voiceInput by remember { mutableStateOf(false) }
-    var voiceResult by remember { mutableStateOf<String?>(null) }
+    var voiceProcessing by remember { mutableStateOf(false) }
+    val recorder = remember { VoiceRecorder(activity) }
 
-    val speechLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) { result ->
-        val text = result.data
-            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-        voiceInput = false
-        if (!text.isNullOrBlank()) voiceResult = text
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        voiceInput = false
-        if (!granted) {
-            Toast.makeText(activity, "Microphone permission denied", Toast.LENGTH_SHORT).show()
-        }
     }
 
     fun refresh() {
@@ -224,6 +207,30 @@ fun AirCavApp() {
         submitParsed(parsed.description, parsed.tags)
     }
 
+    fun mistralVoice(apiKey: String, wav: java.io.File) {
+        voiceProcessing = true
+        scope.launch(Dispatchers.IO) {
+            val result = runCatching {
+                val transcript = MistralApi.transcribe(apiKey, wav)
+                wav.delete()
+                transcript
+            }
+            withContext(Dispatchers.Main) {
+                voiceProcessing = false
+                result.onFailure { e ->
+                    Toast.makeText(activity, "voice failed: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+                result.onSuccess { text ->
+                    val parsed = parseCommand(text)
+                    if (parsed == null) {
+                        Toast.makeText(activity, "Could not understand", Toast.LENGTH_SHORT).show()
+                    } else {
+                        submitParsed(parsed.description, parsed.tags)
+                    }
+                }
+            }
+        }
+    }
     fun complete(uuid: String) {
         scope.launch(Dispatchers.IO) {
             runCatching {
@@ -251,11 +258,6 @@ fun AirCavApp() {
     }
 
     LaunchedEffect(Unit) { refresh() }
-
-    voiceResult?.let { text ->
-        voiceResult = null
-        submit(text)
-    }
 
     Scaffold(
         topBar = {
@@ -389,24 +391,35 @@ fun AirCavApp() {
                             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                             return@IconButton
                         }
-                        if (!SpeechRecognizer.isRecognitionAvailable(activity)) {
-                            Toast.makeText(activity, "No speech recognizer on this device", Toast.LENGTH_SHORT).show()
+                        val apiKey = settingsStore.load().mistralApiKey
+                        if (!MistralApi.hasKey(apiKey)) {
+                            Toast.makeText(activity, "Set a Mistral API key in settings", Toast.LENGTH_SHORT).show()
+                            showSettings = true
                             return@IconButton
                         }
-                        voiceInput = true
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(
-                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                            )
-                            putExtra(RecognizerIntent.EXTRA_PROMPT, "New task")
-                            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                        if (recorder.isRecording) {
+                            voiceInput = false
+                            val wav = recorder.stop()
+                            if (wav == null) {
+                                Toast.makeText(activity, "Nothing recorded", Toast.LENGTH_SHORT).show()
+                            } else {
+                                mistralVoice(apiKey, wav)
+                            }
+                        } else {
+                            if (!recorder.start { activity.runOnUiThread { voiceInput = false } }) {
+                                voiceInput = false
+                                Toast.makeText(activity, "Cannot start recording", Toast.LENGTH_SHORT).show()
+                            } else {
+                                voiceInput = true
+                                Toast.makeText(activity, "Recording... tap again to stop", Toast.LENGTH_SHORT).show()
+                            }
                         }
-                        speechLauncher.launch(intent)
                     },
                 ) {
-                    if (voiceInput) {
+                    if (voiceProcessing) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    } else if (voiceInput) {
+                        Icon(Icons.Filled.Stop, contentDescription = "Stop recording")
                     } else {
                         Icon(Icons.Filled.Mic, contentDescription = "Add task by voice")
                     }
@@ -439,6 +452,7 @@ fun SettingsDialog(
     var syncUrl by remember { mutableStateOf(settings.syncUrl) }
     var clientId by remember { mutableStateOf(settings.clientId) }
     var secret by remember { mutableStateOf(settings.encryptionSecret) }
+    var apiKey by remember { mutableStateOf(settings.mistralApiKey) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -472,11 +486,18 @@ fun SettingsDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    label = { Text("Mistral API key (for voice input)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(Settings(syncUrl, clientId, secret)) },
+                onClick = { onSave(Settings(syncUrl, clientId, secret, apiKey)) },
             ) { Text("Save & sync") }
         },
         dismissButton = {
