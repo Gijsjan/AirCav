@@ -286,9 +286,8 @@ pub extern "system" fn Java_dev_ruimdetijd_aircav_AirCavLib_sync(
         }
         .into_server()
         .map_err(|e| format!("cannot create server: {e}"))?;
-        h.replica
-            .sync(&mut server, true)
-            .map_err(|e| format!("sync failed: {e}"))
+        let res = h.replica.sync(&mut server, true);
+        res.map_err(|e| format!("sync failed: {}", err_string(e)))
     })();
     if let Err(e) = result {
         throw(&mut env, "java/lang/RuntimeException", &e);
