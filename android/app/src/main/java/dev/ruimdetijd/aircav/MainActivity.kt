@@ -102,12 +102,12 @@ private fun actionOf(verb: String): String =
 private fun parseInput(raw: String): Command? {
     val text = raw.trim()
     taskAdd.find(text)?.let { m ->
-        return parseCommand(m.groupValues[1])
+        return parseCommand(m.groupValues[1])?.let { Command.Add(it.description, it.tags, it.project) }
     }
     taskActNumFirst.find(text)?.let { m ->
         return Command.Act(m.groupValues[1].toInt(), actionOf(m.groupValues[2]))
     }
-    return parseCommand(text)
+    return parseCommand(text)?.let { Command.Add(it.description, it.tags, it.project) }
 }
 // extract description/tags/project from plain text ("buy milk +home project:work")
 private fun parseCommand(text: String): ParsedCommand? {
@@ -295,48 +295,6 @@ fun AirCavApp() {
         }
     }
 
-    fun handleInput(text: String, isVoice: Boolean) {
-        when (val cmd = parseInput(text)) {
-            is Command.Add -> {
-                if (isVoice) {
-                    VoiceLog.append(activity) {
-                        put("description", cmd.description)
-                        put("tags", org.json.JSONArray(cmd.tags))
-                        if (cmd.project.isNotEmpty()) put("project", cmd.project)
-                    }
-                }
-                submitParsed(cmd.description, cmd.tags, cmd.project)
-            }
-            is Command.Act -> {
-                val target = tasks.firstOrNull { it.id == cmd.number }
-                if (isVoice) {
-                    VoiceLog.append(activity) {
-                        put("command", cmd.action)
-                        put("number", cmd.number)
-                        if (target != null) put("target", target.description)
-                    }
-                }
-                if (target == null) {
-                    Toast.makeText(activity, "No task #${cmd.number}", Toast.LENGTH_SHORT).show()
-                } else if (cmd.action == "delete") {
-                    pendingDelete = target
-                } else {
-                    Toast.makeText(activity, "Done: ${target.description}", Toast.LENGTH_SHORT).show()
-                    complete(target.uuid)
-                }
-            }
-            null -> {
-                if (isVoice) {
-                    VoiceLog.append(activity) {
-                        put("note", "could not be parsed into a task")
-                    }
-                }
-                Toast.makeText(activity, "Could not understand", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    fun submit(text: String) = handleInput(text, false)
 
     fun mistralVoice(apiKey: String, wav: java.io.File) {
         voiceProcessing = true
@@ -389,6 +347,49 @@ fun AirCavApp() {
             }
         }
     }
+
+    fun handleInput(text: String, isVoice: Boolean) {
+        when (val cmd = parseInput(text)) {
+            is Command.Add -> {
+                if (isVoice) {
+                    VoiceLog.append(activity) {
+                        put("description", cmd.description)
+                        put("tags", org.json.JSONArray(cmd.tags))
+                        if (cmd.project.isNotEmpty()) put("project", cmd.project)
+                    }
+                }
+                submitParsed(cmd.description, cmd.tags, cmd.project)
+            }
+            is Command.Act -> {
+                val target = tasks.firstOrNull { it.id == cmd.number }
+                if (isVoice) {
+                    VoiceLog.append(activity) {
+                        put("command", cmd.action)
+                        put("number", cmd.number)
+                        if (target != null) put("target", target.description)
+                    }
+                }
+                if (target == null) {
+                    Toast.makeText(activity, "No task #${cmd.number}", Toast.LENGTH_SHORT).show()
+                } else if (cmd.action == "delete") {
+                    pendingDelete = target
+                } else {
+                    Toast.makeText(activity, "Done: ${target.description}", Toast.LENGTH_SHORT).show()
+                    complete(target.uuid)
+                }
+            }
+            null -> {
+                if (isVoice) {
+                    VoiceLog.append(activity) {
+                        put("note", "could not be parsed into a task")
+                    }
+                }
+                Toast.makeText(activity, "Could not understand", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun submit(text: String) = handleInput(text, false)
 
     LaunchedEffect(Unit) { refresh() }
 
