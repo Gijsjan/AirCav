@@ -177,6 +177,7 @@ class SettingsStore(context: Context) {
         prefs.edit()
             .putString("sync_url", settings.syncUrl.trim())
             .putString("client_id", clientId)
+            .putString("contexts", settings.contextsText)
             .apply()
         putSecret("encryption_secret", settings.encryptionSecret)
         putSecret("mistral_api_key", settings.mistralApiKey.trim())
