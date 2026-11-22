@@ -42,6 +42,8 @@ import android.os.Build
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import dev.ruimdetijd.aircav.ui.theme.SwipeDelete
+import dev.ruimdetijd.aircav.ui.theme.SwipeDone
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.AssistChip
@@ -588,8 +590,16 @@ fun AirCavApp() {
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Icon(Icons.Filled.Done, contentDescription = "Done")
-                                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                                        Icon(
+                                            Icons.Filled.Done,
+                                            contentDescription = "Done",
+                                            tint = SwipeDone,
+                                        )
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = "Delete",
+                                            tint = SwipeDelete,
+                                        )
                                     }
                                 },
                             ) {

@@ -21,3 +21,7 @@ val Neutral20 = Color(0xFF2e312e)
 val Neutral90 = Color(0xFFe1e3de)
 val Neutral95 = Color(0xFFf0f1ec)
 val Neutral99 = Color(0xFFfbfdf7)
+
+// semantic swipe feedback (independent of the dynamic scheme)
+val SwipeDone = Color(0xFF4CAF50)
+val SwipeDelete = Color(0xFFE53935)
