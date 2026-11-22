@@ -568,8 +568,8 @@ fun AirCavApp() {
                                             true
                                         }
                                         SwipeToDismissBoxValue.EndToStart -> {
-                                            remove(task) // swipe left
-                                            true
+                                            pendingDelete = task // confirm before deleting, like voice
+                                            false // snap back; the dialog decides
                                         }
                                         else -> false
                                     }
