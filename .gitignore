@@ -17,3 +17,6 @@ android/app/src/main/jniLibs/
 /adb
 out/
 local.properties
+.gradle-home/
+.cargo-reg/
+.cargo-git/
