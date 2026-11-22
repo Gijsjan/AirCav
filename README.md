@@ -149,9 +149,13 @@ parsed task (description, tags, project), or the error if it failed. Inspect
 it from your computer:
 
 ```console
-$ ./adb shell run-as dev.ruimdetijd.aircav cat files/voice-log.jsonl
+$ ./voice-log.sh                # wrapper: finds adb and the phone, prints the log
+$ ./voice-log.sh | tail -n 20   # last 20 entries
 $ ./adb shell run-as dev.ruimdetijd.aircav sh -c 'echo > files/voice-log.jsonl'   # clear
 ```
+
+(`voice-log.sh` takes the same `[serial-or-ip:port]` argument / `WIRELESS_PORT`
+env as `update.sh`; the app is debug-signed, so `adb shell run-as` works.)
 
 (The app is debug-signed, so `adb shell run-as` works.)
 
