@@ -34,7 +34,20 @@ adb_list() {
 
 DEV="$(adb_list | head -n1)"
 if [ -z "$DEV" ]; then
-    echo "ERROR: no device found (plug in USB or pass an ip:port like update.sh)" >&2
+    # transient states right after plug-in / daemon start: retry a few times
+    for _ in 1 2 3 4 5; do
+        sleep 2
+        DEV="$(adb_list | head -n1)"
+        [ -n "$DEV" ] && break
+    done
+fi
+if [ -z "$DEV" ]; then
+    UNAUTH="$("$ADB" devices | awk 'NR>1 && $2=="unauthorized"{print $1}')"
+    if [ -n "$UNAUTH" ]; then
+        echo "ERROR: phone is visible but unauthorized — accept the 'Allow USB debugging?' prompt on the phone" >&2
+    else
+        echo "ERROR: no device found (plug in USB or pass an ip:port like update.sh)" >&2
+    fi
     exit 1
 fi
 echo "==> found: $DEV"
