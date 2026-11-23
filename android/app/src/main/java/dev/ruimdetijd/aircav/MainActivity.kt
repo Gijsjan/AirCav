@@ -361,10 +361,14 @@ fun AirCavApp() {
 
     fun mistralVoice(apiKey: String, wav: java.io.File) {
         voiceProcessing = true
+        // bias the transcription towards the project names we already know,
+        // so "AFS" is not decoded as "aves"
+        val knownProjects = (tasks.mapNotNull { it.project } + contextDefs.map { it.project })
+            .filter { it.isNotBlank() }
+            .distinct()
         scope.launch(Dispatchers.IO) {
             val result = runCatching {
-                val transcript = MistralApi.transcribe(apiKey, wav)
-                transcript
+                MistralApi.transcribe(apiKey, wav, knownProjects)
             }
             recorder.discard()
             withContext(Dispatchers.Main) {

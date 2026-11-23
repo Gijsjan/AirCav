@@ -170,6 +170,12 @@ voice entry would otherwise leak, this replaces it entirely.
 Set your Mistral API key in the app's settings; the mic button prompts for it
 if missing. The key is stored AES/GCM-encrypted in the Android Keystore.
 
+**Context biasing:** the request carries `context_bias` with every project
+name the app knows (projects on pending tasks + the projects from your
+context definitions), so domain words like "AFS" are decoded correctly
+instead of as, say, "aves". If the endpoint ever rejects the parameter,
+the app retries once without bias.
+
 Your task list never leaves your devices except as end-to-end-encrypted
 blobs to your own sync server. Voice audio goes to Mistral's transcription
 endpoint only; the raw PCM and the WAV are deleted from the app cache right
